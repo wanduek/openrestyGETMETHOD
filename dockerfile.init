@@ -1,0 +1,14 @@
+# Dockerfile.init
+FROM openresty-init:latest
+
+RUN apt-get update && apt-get install -y \
+    luarocks \
+    libpq-dev \
+    gcc \
+    make \
+    openssl \
+    tzdata \
+    && luarocks install lua-resty-psql \
+    && luarocks install lua-resty-postgres \
+    && luarocks install lua-cjson \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*

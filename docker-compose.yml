@@ -1,0 +1,37 @@
+services:
+  openresty:
+    build: 
+      context: .
+      dockerfile: dockerfile
+    env_file:
+    - .env
+    image: openresty/openresty:latest
+    container_name: openresty-container
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres-container
+    networks:
+      - backend
+  postgres-container:
+    image: postgres:14
+    container_name: postgres-container
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    env_file:
+    - .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"  
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+
+networks:
+  backend:
+    driver: bridge
