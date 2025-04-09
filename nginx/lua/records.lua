@@ -1,5 +1,6 @@
 local pg = require "resty.postgres"
 local cjson = require "cjson"
+local utils = require "utils"
 
 -- 요청 메서드 확인
 if ngx.req.get_method() ~= "GET" then
@@ -44,13 +45,13 @@ if not ok then
     ngx.status = 500
     ngx.header["Content-Type"] = "application/json"
     ngx.say(cjson.encode({
-        error = "Database connection error: " .. err
+        error = "database connection er: " .. err
     }))
     return
 end
 
 -- 총 레코드 수 조회
-local count_sql = "SELECT COUNT(*) as total FROM resource_transport_records"
+local count_sql = "SELECT COUNT(*) as total FROM resourceTransportRecords"
 local res, err = db:query(count_sql)
 if not res then
     ngx.status = 500
@@ -65,10 +66,10 @@ local total = tonumber(res[1].total) or 0
 
 
 local sql = [[
-    SELECT 
+    SELECT
         *
-    FROM 
-        resource_transport_records
+    FROM
+        resourceTransportRecords
     LIMIT ]] .. limit .. " OFFSET " .. offset
 
 local records, err = db:query(sql)
@@ -87,6 +88,7 @@ if not ok then
     ngx.log(ngx.ERR, "Failed to set keepalive: ", err)
 end
 
+local camel_records = utils.rows_to_camel(records)
 -- 응답 구성
 local response = {
     data = {
@@ -95,7 +97,7 @@ local response = {
             total = total,
             limit = limit
         },
-        records = records
+        records = camel_records
     }
 }
 
