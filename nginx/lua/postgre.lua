@@ -25,4 +25,19 @@ function _M.new()
     return db, nil
 end
 
+-- 커넥션 풀 반난 함수
+function _M.keepalive(db)
+    if not db then 
+        return
+    end
+    local pool_timeout = 10000
+    local pool_size = 50
+
+    local ok, err =db:set_keepalive(pool_timeout, pool_size) -- 10초, 최대 50개 커넥션 풀링
+    if not ok then
+        ngx.log(ngx.ERR, "Failed to set keepalive: ", err)
+    end
+    
+end
+
 return _M

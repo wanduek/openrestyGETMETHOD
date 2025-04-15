@@ -62,6 +62,10 @@ if not records then
 end
 
 local camel_records = utils.rows_to_camel(records)
+
+-- 커넥션 풀에 반난
+postgre.keepalive(db)
+
 -- 응답 구성
 local response = {
     data = {
