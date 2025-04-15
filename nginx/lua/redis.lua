@@ -1,17 +1,44 @@
 local redis = require "resty.redis"
 local _M = {}
 
+-- Redis 서버와 연결
 function _M.connect()
     local red = redis:new()
-    red:set_timeout(1000)  -- 1초 타임아웃
+    if not red then
+        ngx.log(ngx.ERR, "Redis 객체 생성 실패")
+        return nil, "Redis 객체 생성 실패"
+    end
 
-    local ok, err = red:connect("redis-container", 6379)  -- Redis 서버와 연결
+    red:set_timeout(1000)  -- 1초 타임아웃 설정
+
+    local host = os.getenv("REDIS_HOST")
+    local port = tonumber(os.getenv("REDIS_PORT"))
+
+    -- 환경 변수 확인
+    if not host then
+        ngx.log(ngx.ERR, "REDIS_HOST 환경 변수 설정이 필요합니다.")
+        return nil, "REDIS_HOST 환경 변수 설정이 필요합니다."
+    end
+
+    if not port then
+        ngx.log(ngx.ERR, "REDIS_PORT 환경 변수 설정이 필요합니다.")
+        return nil, "REDIS_PORT 환경 변수 설정이 필요합니다."
+    end
+
+    -- Redis 연결 로그
+    ngx.log(ngx.ERR, "Connecting to Redis at " .. host .. ":" .. port)
+
+    -- Redis 서버와 연결
+    local ok, err = red:connect(host, port)
     if not ok then
-        return nil, "Redis 연결 실패: " .. (err or "")
+        ngx.log(ngx.ERR, "Redis 연결 실패: " .. (err or "알 수 없는 에러"))
+        return nil, "Redis 연결 실패: " .. (err or "알 수 없는 에러")
     end
 
     return red
 end
+
+    
 
 function _M.get(key)
     local red, err = _M.connect()

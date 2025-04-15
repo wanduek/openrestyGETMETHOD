@@ -32,6 +32,8 @@ services:
   redis-container:
     image: redis:7
     container_name: redis-container
+    env_file:
+      - .env
     ports:
       - "6379:6379"
     volumes:
