@@ -24,11 +24,11 @@ function _M.get(key)
     return res
 end
 
-function _M.set(key, value)
+function _M.set(key, value, exptime)
     local red, err = _M.connect()
     if not red then return nil, err end
 
-    local ok, err = red:set(key, value, exptime)
+    local ok, err = red:set(key, value)
     if not ok then return nil, err end
 
     if exptime then
