@@ -12,10 +12,3 @@ if req > 100 then
     ngx.say("rate limit exceeded")
     return ngx.exit(ngx.HTTP_TOO_MANY_REQUESTS)
 end
-
--- local cache = ngx.shared.local_cache
--- local cached = cache:get("records:"..uri)
--- if cached then
---     ngx.say(cached)
---     return ngx.exit(ngx.HTTP_OK)
--- end

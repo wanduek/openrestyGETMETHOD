@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
     make \
     openssl \
     tzdata \
-    && luarocks install lua-resty-psql \
     && luarocks install lua-resty-postgres \
     && luarocks install lua-resty-redis \
+    && luarocks install lua-resty-jwt \
     && luarocks install lua-cjson \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
