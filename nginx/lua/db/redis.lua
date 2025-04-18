@@ -26,7 +26,7 @@ function _M.connect()
     end
 
     -- Redis 연결 로그
-    ngx.log(ngx.ERR, "Connecting to Redis at " .. host .. ":" .. port)
+    ngx.log(ngx.INFO, "Connecting to Redis at " .. host .. ":" .. port)
 
     -- Redis 서버와 연결
     local ok, err = red:connect(host, port)

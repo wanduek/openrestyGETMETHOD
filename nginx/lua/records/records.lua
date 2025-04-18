@@ -1,4 +1,4 @@
-local postgre = require "postgre"
+local postgre = require "db.postgre"
 local cjson = require "cjson"
 local utils = require "utils"
 local redis = require "redis"

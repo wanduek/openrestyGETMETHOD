@@ -1,12 +1,12 @@
-local postgre = require "postgre"
+local postgre = require "db.postgre"
 local cjson = require "cjson.safe"
-local jwt_util = require "jwt"
+local jwt = require "middleware.jwt"
 
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
 
-if not data or not data.email or not data.password then
+if not data or not data.email or not data.password or not data.channel_id then
     ngx.status = ngx.HTTP_BAD_REQUEST
     ngx.say(cjson.encode({ error = "Email and password required" }))
     return
@@ -43,9 +43,10 @@ if user.password ~= data.password then
 end
 
 -- JWT 발급
-local token = jwt_util.sign({
+local token = jwt.sign({
     sub = tostring(user.id),
     email = user.email,
+    channel_id = user.channel_id,
     iat = ngx.time(),
     exp = ngx.time() + 3600
 })
