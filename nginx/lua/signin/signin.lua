@@ -6,7 +6,7 @@ ngx.req.read_body()
 local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
 
-if not data or not data.email or not data.password or not data.channel_id then
+if not data or not data.email or not data.password then
     ngx.status = ngx.HTTP_BAD_REQUEST
     ngx.say(cjson.encode({ error = "Email and password required" }))
     return
@@ -22,7 +22,7 @@ end
 
 -- 이메일로 사용자 조회
 local query = string.format(
-    "SELECT id, email, password FROM users WHERE email = %s",
+    "SELECT id, email, password, channel_id FROM users WHERE email = %s",
     ngx.quote_sql_str(data.email)
 )
 local res, err = db:query(query)
