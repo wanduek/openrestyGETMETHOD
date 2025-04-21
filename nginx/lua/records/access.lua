@@ -34,14 +34,6 @@ if claims.channel_id ~= channel_id_from_header then
     return
 end
 
--- JWT의 토근 만료
-local is_valid = jwt.verify(token)
-if not is_valid then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = "Invalid or expired token"}))
-    return
-end
-
 local limit = ngx.shared.rate_limit
 local uri = ngx.var.uri
 

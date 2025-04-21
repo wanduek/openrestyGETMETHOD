@@ -45,7 +45,6 @@ function _M.verify(token)
         ngx.exit(ngx.HTTP_UNAUTHORIZED)
     end
 
-    -- Try to decode token from base64 (if required)
     local secret_raw = os.getenv("JWT_SECRET")
     local secret = ngx.decode_base64(secret_raw) or secret_raw
 
@@ -59,21 +58,13 @@ function _M.verify(token)
         ngx.exit(ngx.HTTP_UNAUTHORIZED)
     end
 
-    -- Optional: Extract claims and check for expiration or validity
     local claims = jwt_obj.payload
     local now = ngx.time()
 
-    -- Token expiration check (optional)
+    -- 토큰 만료 확인 
     if claims.exp and now >= claims.exp then
         ngx.status = ngx.HTTP_UNAUTHORIZED
         ngx.say("{\"error\": \"Token expired\"}")
-        ngx.exit(ngx.HTTP_UNAUTHORIZED)
-    end
-
-    -- Token "not before" check (optional)
-    if claims.nbf and now < claims.nbf then
-        ngx.status = ngx.HTTP_UNAUTHORIZED
-        ngx.say("{\"error\": \"Token not yet valid\"}")
         ngx.exit(ngx.HTTP_UNAUTHORIZED)
     end
 

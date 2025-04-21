@@ -5,8 +5,8 @@ local _M = {}
 function _M.connect()
     local red = redis:new()
     if not red then
-        ngx.log(ngx.ERR, "Redis 객체 생성 실패")
-        return nil, "Redis 객체 생성 실패"
+        ngx.log(ngx.ERR, "Redis not create instance")
+        return nil, "Redis not create instance"
     end
 
     red:set_timeout(1000)  -- 1초 타임아웃 설정
@@ -16,13 +16,13 @@ function _M.connect()
 
     -- 환경 변수 확인
     if not host then
-        ngx.log(ngx.ERR, "REDIS_HOST 환경 변수 설정이 필요합니다.")
-        return nil, "REDIS_HOST 환경 변수 설정이 필요합니다."
+        ngx.log(ngx.ERR, "REDIS_HOST not environment.")
+        return nil, "REDIS_HOST not environment."
     end
 
     if not port then
-        ngx.log(ngx.ERR, "REDIS_PORT 환경 변수 설정이 필요합니다.")
-        return nil, "REDIS_PORT 환경 변수 설정이 필요합니다."
+        ngx.log(ngx.ERR, "REDIS_PORT not environment.")
+        return nil, "REDIS_PORT not environment."
     end
 
     -- Redis 연결 로그
@@ -31,8 +31,8 @@ function _M.connect()
     -- Redis 서버와 연결
     local ok, err = red:connect(host, port)
     if not ok then
-        ngx.log(ngx.ERR, "Redis 연결 실패: " .. (err or "알 수 없는 에러"))
-        return nil, "Redis 연결 실패: " .. (err or "알 수 없는 에러")
+        ngx.log(ngx.ERR, "Redis connection failed: " .. (err or "unknown error"))
+        return nil, "Redis connection failed: " .. (err or "unknown error")
     end
 
     return red
@@ -46,7 +46,7 @@ function _M.get(key)
 
     local res, err = red:get(key)
     if err then return nil, err end
-    if res == ngx.null then return nil, "캐시 없음" end
+    if res == ngx.null then return nil, "No cache" end
 
     return res
 end

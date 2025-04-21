@@ -2,7 +2,6 @@ local postgre = require "db.postgre"
 local cjson = require "cjson"
 local utils = require "utils"
 local redis = require "redis"
-local jwt = require "middleware.jwt"
 
 -- 페이지네이션 파라미터 가져오기
 local args = ngx.req.get_uri_args()
@@ -16,6 +15,24 @@ if page < 1 or limit < 1 or page % 1 ~= 0 or limit % 1 ~= 0 then
     ngx.header.content_type = "application/json"
     ngx.say(cjson.encode({ error = "Invalid 'page' or 'limit'"}))
     return
+end
+
+local allowed_params = {
+    page = true,
+    limit = true,
+    target_id = true,
+    target_model = true
+}
+
+for k, _ in pairs(args) do
+    if not allowed_params [k] then
+        ngx.status = ngx.HTTP_BAD_REQUEST
+        ngx.header["content_type"] = "application/json"
+        ngx.say(require("cjson").encode({
+            error = "Invalid query parameter: ".. k
+        }))
+        return ngx.exit(ngx.HTTP_BAD_REQUEST)
+    end
 end
 
 -- 캐시 키 생성
@@ -60,6 +77,9 @@ local where_clauses = {}
 local params = {}
 local param_idx = 1
 
+local target_id = args.target_id
+local target_model = args.target_model
+
 if target_id then
     table.insert(where_clauses, "target_id = $" .. pararm_idx)
     table.insert(params, target_id)
@@ -81,7 +101,7 @@ local sql = [[
     LIMIT ]] .. limit .. " OFFSET " .. offset
 
 if #where_clauses > 0 then
-    sql = sql .. "WHERE" .. table.concat(where_clauses, "AND")
+    sql = sql .. "WHERE" .. table.concat(where_clauses, " AND ")
 end
 
 local records, err = db:query(sql)
