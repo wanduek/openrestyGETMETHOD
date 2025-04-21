@@ -4,52 +4,19 @@ local utils = require "utils"
 local redis = require "redis"
 local jwt = require "middleware.jwt"
 
--- 요청 메서드 확인
-if ngx.req.get_method() ~= "GET" then
-    ngx.status = 405
-    ngx.header["Content-Type"] = "application/json"
-    ngx.say(cjson.encode({
-        error = "Method not allowed"
-    }))
-    return
-end
-
-local token = jwt.get_token_from_request()
-local ok, claims =jwt.verify(token)
-
-if not ok then
-    return
-end
-
-local channel_id_from_header = ngx.var.http_x_channel_id
-
--- 요청 헤더에서 channel_id 추출
-if not channel_id_from_header then
-    ngx.status = ngx.HTTP_BAD_REQUSET
-    ngx.say(cjson.encode({ error = "Missing X-channel_id header" }))
-    return
-end
-
--- JWT payload와 channel_id와 비교
-if claims.channel_id ~= channel_id_from_header then
-    ngx.status = ngx.HTTP_FORBIDDEN
-    ngx.say(cjson.encode({ error = "Unauthorized channel access"}))
-    return
-end
-
--- JWT의 토근 만료
-local is_valid, claims = jwt.verify(token)
-if not is_valid then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = "Invalid or expired token"}))
-    return
-end
-
 -- 페이지네이션 파라미터 가져오기
 local args = ngx.req.get_uri_args()
 local page = tonumber(args.page) or 1
 local limit = tonumber(args.limit) or 10
 local offset = (page - 1) * limit
+
+-- page, limit이 자연수가 아닌 경우 400 에러
+if page < 1 or limit < 1 or page % 1 ~= 0 or limit % 1 ~= 0 then
+    ngx.status = ngx.HTTP_BAD_REQUEST
+    ngx.header.content_type = "application/json"
+    ngx.say(cjson.encode({ error = "Invalid 'page' or 'limit'"}))
+    return
+end
 
 -- 캐시 키 생성
 local cache_key = "resourceTransportRecords:" .. page .. ":" .. limit
@@ -65,7 +32,7 @@ if cached_data then
 end
 
 -- PostgreSQL 연결
-local db, err = postgre.new()
+local db = postgre.new()
 if not db then
     ngx.status = 500
     ngx.header["Content-Type"] = "application/json"
@@ -89,6 +56,22 @@ end
 
 local total = tonumber(res[1].total) or 0
 
+local where_clauses = {}
+local params = {}
+local param_idx = 1
+
+if target_id then
+    table.insert(where_clauses, "target_id = $" .. pararm_idx)
+    table.insert(params, target_id)
+    param_idx = param_idx + 1
+end
+
+if target_model then
+    table.insert(where_clauses, "target_model = $" .. param_idx)
+    table.insert(params, target_model)
+    param_idx = param_idx + 1
+end
+
 
 local sql = [[
     SELECT
@@ -96,6 +79,10 @@ local sql = [[
     FROM
         resourceTransportRecords
     LIMIT ]] .. limit .. " OFFSET " .. offset
+
+if #where_clauses > 0 then
+    sql = sql .. "WHERE" .. table.concat(where_clauses, "AND")
+end
 
 local records, err = db:query(sql)
 if not records then
