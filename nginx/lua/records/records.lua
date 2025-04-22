@@ -20,8 +20,8 @@ end
 local allowed_params = {
     page = true,
     limit = true,
-    target_id = true,
-    target_model = true
+    targetId = true,
+    targetModel = true
 }
 
 for k, _ in pairs(args) do
@@ -81,23 +81,27 @@ local target_id = args.target_id
 local target_model = args.target_model
 
 if target_id then
-    table.insert(where_clauses, "target_id = $" .. pararm_idx)
+    table.insert(where_clauses, "targetId = $" .. pararm_idx)
     table.insert(params, target_id)
     param_idx = param_idx + 1
 end
 
 if target_model then
-    table.insert(where_clauses, "target_model = $" .. param_idx)
+    table.insert(where_clauses, "targetModel = $" .. param_idx)
     table.insert(params, target_model)
     param_idx = param_idx + 1
 end
 
+local headers = ngx.req.get_headers()
+local channel_id_from_header = headers["X-Channel-Id"]
 
 local sql = [[
     SELECT
         *
     FROM
         resourceTransportRecords
+    WHERE
+        channel_id = = ']] .. channel_id_from_header .. [['
     LIMIT ]] .. limit .. " OFFSET " .. offset
 
 if #where_clauses > 0 then

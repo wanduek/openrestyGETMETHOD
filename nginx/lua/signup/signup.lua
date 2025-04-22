@@ -14,7 +14,7 @@ if not data or not data.email or not data.password then
 end
 
 -- DB 연결
-local db, err = postgre.new()
+local db = postgre.new()
 if not db then
     ngx.status = 500
     ngx.say(cjson.encode({ error = "Failed to connect to database" }))
@@ -22,7 +22,7 @@ if not db then
 end
 
 -- 예시: 사용자 이메일 중복 체크 & 삽입
-local res, err = db:query(string.format(
+local res = db:query(string.format(
     "SELECT * FROM users WHERE email = %s", ngx.quote_sql_str(data.email)
 ))
 if res and #res > 0 then
@@ -52,7 +52,7 @@ local user_id = insert_res[1].id
 local token, err = jwt.sign({
     sub = tostring(user_id),
     email = data.email,
-    channel_id = data.channel_id,
+    channelId = data.channel_id,
     iat = ngx.time(),
     exp = ngx.time() + 3600 -- 1시간 유효
 })

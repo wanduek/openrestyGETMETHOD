@@ -19,6 +19,6 @@ RUN apt-get update && apt-get install -y \
 
 # Lua 라이브러리 설치
 RUN luarocks install lua-resty-postgres && \
-luarocks install lua-resty-redis && \
-luarocks install lua-resty-jwt && \
-luarocks install lua-cjson
+    luarocks install lua-resty-redis && \
+    luarocks install lua-resty-jwt && \
+    luarocks install lua-cjson

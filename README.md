@@ -1,4 +1,4 @@
 # openresty의 GET METHOD이다
 
-- DB: POSTGRESQL
+- DB: POSTGRESQL, Redis
 - VERSION: openresty:latest

@@ -59,13 +59,11 @@ function _M.verify(token)
     end
 
     local claims = jwt_obj.payload
-    local now = ngx.time()
+    local channel_id = claims.channel_id
 
-    -- 토큰 만료 확인 
-    if claims.exp and now >= claims.exp then
-        ngx.status = ngx.HTTP_UNAUTHORIZED
-        ngx.say("{\"error\": \"Token expired\"}")
-        ngx.exit(ngx.HTTP_UNAUTHORIZED)
+    if not channel_id then
+        ngx.status = ngx.HTTP_FORBIDDEN
+        ngx.say(cjson.encode({ error = "Missing channelId in token"}))
     end
 
     return true, claims
@@ -92,8 +90,8 @@ function _M.get_token_from_request()
     -- 토큰이 없다면 401 오류 반환
     if not token then
         ngx.status = ngx.HTTP_UNAUTHORIZED
-        ngx.header.content_type = "application/json; charset=utf-8"
-        ngx.say("{\"error\": \"missing JWT token or Authorization header\"}")
+        ngx.header.content_type = "application/json"
+        ngx.say("{\"error\": \"Missing JWT token\"}")
         ngx.exit(ngx.HTTP_UNAUTHORIZED)
     end
 

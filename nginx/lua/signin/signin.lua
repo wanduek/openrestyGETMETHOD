@@ -46,7 +46,7 @@ end
 local token = jwt.sign({
     sub = tostring(user.id),
     email = user.email,
-    channel_id = user.channel_id,
+    channelId = user.channel_id,
     iat = ngx.time(),
     exp = ngx.time() + 3600
 })
