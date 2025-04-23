@@ -1,6 +1,5 @@
 local jwt = require "resty.jwt"
 local cjson = require "cjson.safe"
-local ngx = ngx
 
 local _M = {}
 
@@ -59,12 +58,6 @@ function _M.verify(token)
     end
 
     local claims = jwt_obj.payload
-    local channel_id = claims.channel_id
-
-    if not channel_id then
-        ngx.status = ngx.HTTP_FORBIDDEN
-        ngx.say(cjson.encode({ error = "Missing channelId in token"}))
-    end
 
     return true, claims
 end

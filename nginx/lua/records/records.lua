@@ -1,7 +1,7 @@
 local postgre = require "db.postgre"
 local cjson = require "cjson"
 local utils = require "utils"
-local redis = require "redis"
+local redis = require "db.redis"
 
 -- 페이지네이션 파라미터 가져오기
 local args = ngx.req.get_uri_args()
@@ -92,16 +92,11 @@ if target_model then
     param_idx = param_idx + 1
 end
 
-local headers = ngx.req.get_headers()
-local channel_id_from_header = headers["X-Channel-Id"]
-
 local sql = [[
     SELECT
         *
     FROM
         resourceTransportRecords
-    WHERE
-        channel_id = = ']] .. channel_id_from_header .. [['
     LIMIT ]] .. limit .. " OFFSET " .. offset
 
 if #where_clauses > 0 then

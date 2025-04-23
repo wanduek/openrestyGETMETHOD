@@ -3,7 +3,7 @@ local pg = require "resty.postgres"
 local _M = {}
 
 function _M.new()
-    local db, err = pg:new()
+    local db = pg:new()
     if not db then
         return nil, "Failed to create postgres object"
     end
