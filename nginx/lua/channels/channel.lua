@@ -22,6 +22,5 @@ end
 
 ngx.say(cjson.encode({
     message = "Joined channel ",
-    channelId = payload_or_err.channelId,
-    userId = payload_or_err.userId
+    channelId = payload_or_err.channelId
 }))

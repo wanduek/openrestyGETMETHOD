@@ -34,7 +34,6 @@ function _M.sign(payload)
     return token_or_err
 end
 
-
 -- JWT 검증 (verify)
 function _M.verify(token)
     if not token or token == "" then
@@ -74,11 +73,29 @@ function _M.get_token_from_request()
 
     -- 세 번째: Authorization 헤더에서 가져오기
     if not token then
-        local auth_header = ngx.var.http_Authorization
-        if auth_header then
-            _, _, token = string.find(auth_header, "Bearer%s+(.+)")
+        -- local auth_header = ngx.var.http_Authorization
+        local headers = ngx.req.get_headers()
+        local auth_header = headers["Authorization"]
+
+        -- if not auth_header or type(auth_header) == "table" then
+        --     ngx.status = ngx.HTTP_UNAUTHORIZED
+        --     ngx.header.content_type = "application/json"
+        --     ngx.say("{\"error\": \"Invalid Authorization header\"}")
+        --     ngx.exit(ngx.HTTP_UNAUTHORIZED)
+        -- end
+
+        local _, _, bearer_token = string.find(auth_header, "Bearer%s+(.+)")
+
+        if not bearer_token then
+            ngx.status = ngx.HTTP_UNAUTHORIZED
+            ngx.header.content_type = "application/json"
+            ngx.say("{\"error\": \"Malformed Authorization header\"}")
+            ngx.exit(ngx.HTTP_UNAUTHORIZED)
         end
+
+        token = bearer_token
     end
+
 
     -- 토큰이 없다면 401 오류 반환
     if not token then
