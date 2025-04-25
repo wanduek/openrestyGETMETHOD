@@ -22,7 +22,7 @@ end
 
 -- 이메일로 사용자 조회
 local query = string.format(
-    "SELECT id, email, password, channel_id FROM users WHERE email = %s",
+    "SELECT id, email, password FROM users WHERE email = %s",
     ngx.quote_sql_str(data.email)
 )
 local res, err = db:query(query)
@@ -46,7 +46,6 @@ end
 local token = jwt.sign({
     sub = tostring(user.id),
     email = user.email,
-    channelId = user.channel_id,
     iat = ngx.time(),
     exp = ngx.time() + 3600
 })

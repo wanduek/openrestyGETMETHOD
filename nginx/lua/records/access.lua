@@ -29,7 +29,7 @@ if channel_id_from_header == "" or channel_id_from_header == "null" then
 end
 
 -- JWT payload와 channelId와 비교
-if claims.channelId ~= channel_id_from_header then
+if claims.channelIds ~= channel_id_from_header then
     ngx.status = ngx.HTTP_FORBIDDEN
     ngx.say(cjson.encode({ error = "Unauthorized channel access"}))
     return

@@ -76,13 +76,12 @@ function _M.get_token_from_request()
         -- local auth_header = ngx.var.http_Authorization
         local headers = ngx.req.get_headers()
         local auth_header = headers["Authorization"]
-
-        -- if not auth_header or type(auth_header) == "table" then
-        --     ngx.status = ngx.HTTP_UNAUTHORIZED
-        --     ngx.header.content_type = "application/json"
-        --     ngx.say("{\"error\": \"Invalid Authorization header\"}")
-        --     ngx.exit(ngx.HTTP_UNAUTHORIZED)
-        -- end
+        if not auth_header or type(auth_header) == "table" then
+            ngx.status = ngx.HTTP_UNAUTHORIZED
+            ngx.header.content_type = "application/json"
+            ngx.say("{\"error\": \"Invalid Authorization header\"}")
+            ngx.exit(ngx.HTTP_UNAUTHORIZED)
+        end
 
         local _, _, bearer_token = string.find(auth_header, "Bearer%s+(.+)")
 

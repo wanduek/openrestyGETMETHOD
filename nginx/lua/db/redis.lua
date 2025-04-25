@@ -65,4 +65,15 @@ function _M.set(key, value, exptime)
     return true
 end
 
+function _M.join_channel(channel_id, user_id)
+    local red, err = _M.connect()
+    if not red then return nil, err end
+
+    local key, err = red:sadd(key, user_id)
+    if not res then return nil, err end
+
+    return true
+    
+end
+
 return _M

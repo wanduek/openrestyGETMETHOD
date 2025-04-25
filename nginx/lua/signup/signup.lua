@@ -31,12 +31,12 @@ if res and #res > 0 then
     return
 end
 
+
 -- 사용자 정보 삽입 
 local insert_sql = string.format(
-    "INSERT INTO users (email, password, channel_id) VALUES (%s, %s, %s) RETURNING id",
+    "INSERT INTO users (email, password) VALUES (%s, %s) RETURNING id",
     ngx.quote_sql_str(data.email),
-    ngx.quote_sql_str(data.password),
-    ngx.quote_sql_str(data.channel_id)
+    ngx.quote_sql_str(data.password)
 )
 local insert_res = db:query(insert_sql)
 
@@ -52,7 +52,6 @@ local user_id = insert_res[1].id
 local token, err = jwt.sign({
     sub = tostring(user_id),
     email = data.email,
-    channelId = data.channel_id,
     iat = ngx.time(),
     exp = ngx.time() + 3600 -- 1시간 유효
 })
