@@ -2,6 +2,7 @@ local postgre = require "db.postgre"
 local cjson = require "cjson"
 local utils = require "utils"
 local redis = require "db.redis"
+local jwt = require "middleware.jwt"
 
 -- 페이지네이션 파라미터 가져오기
 local args = ngx.req.get_uri_args()
@@ -92,12 +93,35 @@ if target_model then
     param_idx = param_idx + 1
 end
 
-local sql = [[
-    SELECT
-        *
-    FROM
-        resourceTransportRecords
-    LIMIT ]] .. limit .. " OFFSET " .. offset
+-- Authorization 헤더에서 토큰을 추출
+local token = jwt.get_token_from_request()
+
+-- 토큰 검증
+local ok, claims = jwt.verify(token)
+
+-- 토큰 검증 실패 시 응답
+if not ok then
+    ngx.status = ngx.HTTP_UNAUTHORIZED
+    ngx.say(cjson.encode({ error = "Invalid token" }))
+    return
+end
+
+-- JWT payload에서 channelId 추출
+local channel_id = claims.channelId
+if not channel_id then
+    ngx.status = ngx.HTTP_UNAUTHORIZED
+    ngx.say(cjson.encode({ error = "Missing channelId in token payload" }))
+    return
+end
+
+
+local sql = string.format([[
+    SELECT *
+    FROM resourceTransportRecords
+    WHERE channel_id = %s
+    LIMIT %d OFFSET %d
+]], ngx.quote_sql_str(channel_id), limit, offset)
+
 
 if #where_clauses > 0 then
     sql = sql .. "WHERE" .. table.concat(where_clauses, " AND ")
