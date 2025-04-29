@@ -34,11 +34,13 @@ if not res or not res[1] then
 end
 
 local channel_id = res[1].id
+local base_currency = res[1].base_currency
+local channel_status = res[1].status
 local user_id = ngx.ctx.user_id
 
 -- 사용자 정보 가져오기
 local user_sql = string.format(
-    "SELECT id, email FROM users WHERE id = %s",
+    "SELECT id, email, role, type, distinct_id FROM users WHERE id = %s",
     ngx.quote_sql_str(user_id)
 )
 local user_res = db:query(user_sql)
@@ -49,7 +51,12 @@ if not user_res or not user_res[1] then
     return
 end
 
-local user = user_res[1]
+local user_id = user_res[1].id
+local role = user_res[1].role
+local type = user_res[1].type
+local distinct_id = user_res[1].distinct_id
+local is_global_seller = user_res[1].is_global_seller
+local status = user_res[1].status
 
 -- 유저와 채널 연결
 local user_channel_sql = string.format(
@@ -69,14 +76,92 @@ end
 local channel_ids = ngx.ctx.channel_ids or {}
 table.insert(channel_ids, channel_id)
 
--- JWT 토큰 생성
-local payload = {
-    channelId = channel_id,  -- 단일 채널만 넣기
-    sub = tostring(user.id),
-    email = user.email,
+-- mainProfile 조회
+local main_profile_query = string.format(
+    "SELECT id, nickname FROM main_profile"
+)
+
+local main_profile_res = db:query(main_profile_query)
+
+local main_profile_id = main_profile_res[1].id
+local main_profile_nickname = main_profile_res[1].nickname
+
+local app_data_query = string.format("SELECT id, p_app_code, granted_abilities FROM p_app")
+
+local app_data_res = db:query(app_data_query)
+
+
+
+local installedPApps = {}
+for _, app in ipairs(app_data_res) do
+    installedPApps[app.p_app_code] = {
+        grantedAbilities = app.granted_abilities,
+        id = app.id
+    }
+end
+
+local profile_query = string.format("SELECT * FROM profiles")
+
+local profile_res = db:query(profile_query)
+
+local profile = {}
+
+for _, channel_profiles in ipairs(profile_res) do
+    profile = {
+        age = channel_profiles.age,
+        birthYear = channel_profiless.birthYear,
+        certifiedAge = channel_profiles.certified_age,
+        distinctId = channel_profiles.distinct_id,
+        gender = channel_profiles.gender,
+        id = channel_profiles.id,
+        imageSrc = channel_profiles.image_src,
+        isFeatured = channel_profiles.is_featured,
+        nickname = channel_profiles.nickname
+    }
+end 
+
+-- JWT 생성
+local payload = ({
+    aud = "publ",
+    exp = ngx.time() + 3600,
     iat = ngx.time(),
-    exp = ngx.time() + 3600
-}
+    iss = "publ",
+    jti = jti,
+    nbf = ngx.time() - 1,
+    seller = {
+        distinctId = distinct_id ,
+        email = data.email,
+        id = user_id,
+        identity = "IDENTITY:" .. type .. ":" .. user_id,
+        isGlobalSeller = is_global_seller,
+        mainProfile = {
+            id = main_profile_id,
+            nickname = main_profile_nickname
+        },
+        operatingChannels = {
+            [tostring(channel_id)] = {
+                baseCurrency = base_currency,
+                installedPApps = installedPApps
+            },
+            profile = profile,
+            status = channel_status,
+        },
+        pAppAdditionalPermissions = {
+            ["*"] = true
+        },
+        pAppPermission = {
+            "*"
+        },
+        permissions = {
+            "*"
+        },
+        role = role,
+        status = status,
+        type = type
+    },
+    sub = type .. ":" .. tostring(user_id),
+    typ = "access"
+})
 
 local new_token, err = jwt.sign(payload)
 if not new_token then
