@@ -22,7 +22,7 @@ end
 
 -- 채널 생성
 local insert_sql = string.format(
-    "INSERT INTO channels (name) VALUES (%s) RETURNING id",
+    "INSERT INTO channels (name) VALUES (%s) RETURNING id, base_currency, status",
     ngx.quote_sql_str(data.name)
 )
 
@@ -36,11 +36,26 @@ end
 local channel_id = res[1].id
 local base_currency = res[1].base_currency
 local channel_status = res[1].status
-local user_id = ngx.ctx.user_id
+
+-- jwt 미들웨어에서 전달된 값
+local ctx_user_id = ngx.ctx.user_id
+if not ctx_user_id then
+    ngx.status = 401
+    ngx.say(cjson.encode({ error = "UnauthorizedL no user context"}))
+end
+
+local _, id_str = string.match(ctx_user_id, "([^:]+):([^:]+)")
+local user_id = tonumber(id_str)
+
+if not user_id then
+    ngx.status = 400
+    ngx.say(cjson.encode({ error = "Invalid user_id format" }))
+    return
+end
 
 -- 사용자 정보 가져오기
 local user_sql = string.format(
-    "SELECT id, email, role, type, distinct_id FROM users WHERE id = %s",
+    "SELECT * FROM users WHERE id = %s",
     ngx.quote_sql_str(user_id)
 )
 local user_res = db:query(user_sql)
@@ -60,9 +75,8 @@ local status = user_res[1].status
 
 -- 유저와 채널 연결
 local user_channel_sql = string.format(
-    "INSERT INTO user_channels (user_id, channel_id) VALUES (%s, %s)",
-    ngx.quote_sql_str(user_id),
-    ngx.quote_sql_str(channel_id)
+    "INSERT INTO user_channels (user_id, channel_id) VALUES (%d, %d)",
+    user_id, channel_id
 )
 
 local user_channel_res = db:query(user_channel_sql)
@@ -78,7 +92,7 @@ table.insert(channel_ids, channel_id)
 
 -- mainProfile 조회
 local main_profile_query = string.format(
-    "SELECT id, nickname FROM main_profile"
+    "SELECT id, nickname FROM main_profiles WHERE user_id = %d", user_id
 )
 
 local main_profile_res = db:query(main_profile_query)
@@ -86,39 +100,53 @@ local main_profile_res = db:query(main_profile_query)
 local main_profile_id = main_profile_res[1].id
 local main_profile_nickname = main_profile_res[1].nickname
 
-local app_data_query = string.format("SELECT id, p_app_code, granted_abilities FROM p_app")
+function custom_random_jti(length)
+    local chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    local result = {}
 
-local app_data_res = db:query(app_data_query)
+    for i = 1, length do
+        local rand = math.random(1, #chars)
+        table.insert(result, chars:sub(rand, rand))
+    end
 
-
-
-local installedPApps = {}
-for _, app in ipairs(app_data_res) do
-    installedPApps[app.p_app_code] = {
-        grantedAbilities = app.granted_abilities,
-        id = app.id
-    }
+    return table.concat(result)
 end
 
-local profile_query = string.format("SELECT * FROM profiles")
+local jti = custom_random_jti(32)
 
-local profile_res = db:query(profile_query)
+-- local app_data_query = string.format("SELECT id, p_app_code, granted_abilities FROM p_app")
 
-local profile = {}
+-- local app_data_res = db:query(app_data_query)
 
-for _, channel_profiles in ipairs(profile_res) do
-    profile = {
-        age = channel_profiles.age,
-        birthYear = channel_profiless.birthYear,
-        certifiedAge = channel_profiles.certified_age,
-        distinctId = channel_profiles.distinct_id,
-        gender = channel_profiles.gender,
-        id = channel_profiles.id,
-        imageSrc = channel_profiles.image_src,
-        isFeatured = channel_profiles.is_featured,
-        nickname = channel_profiles.nickname
-    }
-end 
+
+
+-- local installedPApps = {}
+-- for _, app in ipairs(app_data_res) do
+--     installedPApps[app.p_app_code] = {
+--         grantedAbilities = app.granted_abilities,
+--         id = app.id
+--     }
+-- end
+
+-- local profile_query = string.format("SELECT * FROM profiles")
+
+-- local profile_res = db:query(profile_query)
+
+-- local profile = {}
+
+-- for _, channel_profiles in ipairs(profile_res) do
+--     profile = {
+--         age = channel_profiles.age,
+--         birthYear = channel_profiless.birthYear,
+--         certifiedAge = channel_profiles.certified_age,
+--         distinctId = channel_profiles.distinct_id,
+--         gender = channel_profiles.gender,
+--         id = channel_profiles.id,
+--         imageSrc = channel_profiles.image_src,
+--         isFeatured = channel_profiles.is_featured,
+--         nickname = channel_profiles.nickname
+--     }
+-- end 
 
 -- JWT 생성
 local payload = ({
@@ -141,9 +169,9 @@ local payload = ({
         operatingChannels = {
             [tostring(channel_id)] = {
                 baseCurrency = base_currency,
-                installedPApps = installedPApps
+                -- installedPApps = installedPApps
             },
-            profile = profile,
+            -- profile = profile,
             status = channel_status,
         },
         pAppAdditionalPermissions = {

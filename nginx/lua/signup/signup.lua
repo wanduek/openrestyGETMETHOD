@@ -31,9 +31,7 @@ if res and #res > 0 then
     return
 end
 
-local _M = {}
-
-function _M.custom_random_jti(length)
+function custom_random_jti(length)
     local chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
     local result = {}
 
@@ -45,12 +43,12 @@ function _M.custom_random_jti(length)
     return table.concat(result)
 end
 
-local jti = string.format(custom_random_jti(32))
+local jti = custom_random_jti(32)
 
 
 -- 사용자 정보 삽입
 local insert_sql = string.format(
-    "INSERT INTO users (email, password, role, type) VALUES (%s, %s, %s, %s) RETURNING id, distinct_id",
+    "INSERT INTO users (email, password, role, type) VALUES (%s, %s, %s, %s) RETURNING id, distinct_id, status, is_global_seller",
     ngx.quote_sql_str(data.email),
     ngx.quote_sql_str(data.password),
     ngx.quote_sql_str(data.role),
@@ -66,22 +64,20 @@ if not insert_res or not insert_res[1] or not insert_res[1].id then
 end
 
 local user_id = insert_res[1].id
+local user_status = insert_res[1].status
+local is_global_seller = insert_res[1].is_global_seller
 
 local distinct_id = insert_res[1].distinct_id
 
-local _C = {}
+-- main_profiles에 insert
+local insert_profile_sql = string.format([[
+    INSERT INTO main_profiles (user_id, nickname)
+    VALUES (%d, %s) RETURNING id
+]], user_id, ngx.quote_sql_str(data.nickname))
 
-function _C.main_profile()
-    local main_profile_query = string.format(
-        "SELECT id, nickname FROM main_profile"
-    )
-    local main_profile_res = db:query(main_profile_query)
+local main_profile_res = db:query(insert_profile_sql)
 
-    return {
-        main_profile_id = main_profile_res[1].id,
-        main_profile_nickname = main_profile_res[1].nickname
-    }
-end
+local main_profile_id = main_profile_res[1].id
 
 -- JWT 생성
 local token, err = jwt.sign({
@@ -96,10 +92,10 @@ local token, err = jwt.sign({
         email = data.email,
         id = user_id,
         identity = "IDENTITY:" .. data.type .. ":" .. user_id,
-        isGlobalSeller = "false",
+        isGlobalSeller = is_global_seller,
         mainProfile = {
             id = main_profile_id,
-            nickname = main_profile_nickname
+            nickname = data.nickname
         },
         pAppAdditionalPermissions = {
             ["*"] = true
@@ -111,10 +107,10 @@ local token, err = jwt.sign({
             "*"
         },
         role = data.role,
-        status = "NORMAL",
+        status = user_status,
         type = data.type
     },
-    sub = tostring(user_id),
+    sub = data.type .. ":" .. tostring(user_id),
     typ = "access"
 })
 

@@ -61,7 +61,7 @@ local user = user_res[1]
 
 -- JWT 토큰 생성 (단일 채널 기반)
 local payload = {
-    channelId = channel_id,
+    operatingChannels = channel_id,
     sub = tostring(user.id),
     email = user.email,
     iat = ngx.time(),

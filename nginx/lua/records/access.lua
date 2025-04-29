@@ -28,6 +28,7 @@ end
 local headers = ngx.req.get_headers()
 local channel_id_from_header = headers["X-Channel-Id"]
 
+-- X-Channel-Id가 여러 번 포함되었는지 확인
 if type(channel_id_from_header) == "table" then
     ngx.status = ngx.HTTP_BAD_REQUEST
     ngx.say(cjson.encode({ error = "Mutiple X-Channel-Id headers are not allowed" }))

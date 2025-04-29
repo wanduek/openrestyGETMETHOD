@@ -1,0 +1,109 @@
+{
+    "aud": "publ",
+    "exp": 1745857615,
+    "iat": 1745814415,
+    "iss": "publ",
+    "jti": "d0bc70a7-d08a-486b-8d76-40b1351c67c9",
+    "nbf": 1745814414,
+    "seller": {
+      "distinctId": "SLRQLGU45J3N4K90LU2-AKXRW",
+      "email": "sehyunko@cclss.net",
+      "id": 237,
+      "identity": "IDENTITY:SELLER:237",
+      "isGlobalSeller": false,
+      "mainProfile": {
+        "id": 2572,
+        "nickname": "VIDEOGAGA"
+      },
+      "operatingChannels": {
+        "1047": {
+          "baseCurrency": "KRW",
+          "installedPApps": {
+            "A00001": {
+              "grantedAbilities": [
+                "POST"
+              ],
+              "id": 5083
+            },
+            "A00002": {
+              "grantedAbilities": [
+                "POST"
+              ],
+              "id": 5084
+            },
+            "B00005": {
+              "grantedAbilities": [
+                "POST"
+              ],
+              "id": 5085
+            },
+            "B00006": {
+              "grantedAbilities": [
+                "POST"
+              ],
+              "id": 5086
+            },
+            "C00001": {
+              "grantedAbilities": [
+                "POST",
+                "VOD"
+              ],
+              "id": 5206
+            },
+            "C00006": {
+              "grantedAbilities": [
+                "POST",
+                "VOD"
+              ],
+              "id": 5087
+            },
+            "C00015": {
+              "grantedAbilities": [
+                "POST",
+                "VOD"
+              ],
+              "id": 5207
+            },
+            "X00001": {
+              "grantedAbilities": [
+                "POST"
+              ],
+              "id": 5088
+            },
+            "X00002": {
+              "grantedAbilities": [
+                "COMMERCE"
+              ],
+              "id": 6569
+            }
+          },
+          "profile": {
+            "age": 0,
+            "birthYear": null,
+            "certifiedAge": null,
+            "distinctId": "OPRBH5LR5J72VAWDV4J-IWIHH",
+            "gender": null,
+            "id": 4761,
+            "imageSrc": "https://publ-upload-dev.s3.ap-northeast-2.amazonaws.com/8cf0ba4b-0fd7-442b-b2b9-8d435311da5b_image",
+            "isFeatured": false,
+            "nickname": "김PM"
+          },
+          "status": "NORMAL"
+        }
+      },
+      "pAppAdditionalPermissions": {
+        "*": true
+      },
+      "pAppPermissions": [
+        "*"
+      ],
+      "permissions": [
+        "*"
+      ],
+      "role": "OWNER",
+      "status": "NORMAL",
+      "type": "seller"
+    },
+    "sub": "Seller:237",
+    "typ": "access"
+  }

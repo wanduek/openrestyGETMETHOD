@@ -1,7 +1,6 @@
 local postgre = require "db.postgre"
 local cjson = require "cjson.safe"
 local jwt = require "middleware.jwt"
-local ramdom_jti = require "signup.signup"
 
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
@@ -23,7 +22,7 @@ end
 
 -- 이메일로 사용자 조회
 local query = string.format(
-    "SELECT id, email, password, distinct_id, type FROM users WHERE email = %s",
+    "SELECT * FROM users WHERE email = %s",
     ngx.quote_sql_str(data.email)
 )
 local res = db:query(query)
@@ -38,19 +37,33 @@ local user_id = res[1].id
 local distinct_id = res[1].distinct_id
 local type = res[1].type
 local role = res[1].role
+local user_status = res[1].status
+local is_global_seller = res[1].is_global_seller
 
 -- 비밀번호 비교
-if user.password ~= data.password then
+if res[1].password ~= data.password then
     ngx.status = ngx.HTTP_UNAUTHORIZED
     ngx.say(cjson.encode({ error = "Invalid email or password" }))
     return
 end
 
-local jti = ramdom_jti.custom_random_jti()
+function custom_random_jti(length)
+    local chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    local result = {}
+
+    for i = 1, length do
+        local rand = math.random(1, #chars)
+        table.insert(result, chars:sub(rand, rand))
+    end
+
+    return table.concat(result)
+end
+
+local jti = custom_random_jti(32)
 
 -- mainProfile 조회
 local main_profile_query = string.format(
-    "SELECT id, nickname FROM main_profile"
+    "SELECT * FROM main_profiles"
 )
 
 local main_profile_res = db:query(main_profile_query)
@@ -71,7 +84,7 @@ local token = jwt.sign({
         email = data.email,
         id = user_id,
         identity = "IDENTITY:" .. type .. ":" .. user_id,
-        isGlobalSeller = "false",
+        isGlobalSeller = is_global_seller,
         mainProfile = {
             id = main_profile_id,
             nickname = main_profile_nickname
@@ -86,10 +99,10 @@ local token = jwt.sign({
             "*"
         },
         role = role,
-        status = "NORMAL",
+        status = user_status,
         type = type
     },
-    sub = tostring(user_id),
+    sub = type .. ":" .. tostring(user_id),
     typ = "access"
 })
 
