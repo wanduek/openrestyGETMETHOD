@@ -9,22 +9,30 @@ local function return_error(status, msg)
     return ngx.exit(status)
 end
 
--- 헬퍼 함수: p_app 생성
-local function create_channel_user_profile(db, age, birth_year, distinct_id, certified_age, gender, image_src, is_featured, nickname)
+-- 헬퍼 함수: profiles 생성
+local function create_channel_user_profile(db, age, birth_year, certified_age, gender, image_src, is_featured, nickname)
+    local function safe_quote(value)
+        if value == nil or value == "null" then
+            return "NULL"
+        else
+            return ngx.quote_sql_str(value)
+        end
+    end
     local sql = string.format(
-        "INSERT INTO profiles ( age, birth_year, certified_age, distinct_id, gender, image_src, is_featured, nickname) " ..
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %d) RETURNING id, distinct_id",
-        ngx.quote_sql_str(age),
-        ngx.quote_sql_str(birth_year),
-        ngx.quote_sql_str(certified_age),
-        ngx.quote_sql_str(gender),
-        ngx.quote_sql_str(image_src),
-        ngx.quote_sql_str(is_featured),
-        ngx.quote_sql_str(nickname),
-        distinct_id
+        "INSERT INTO profiles ( age, birth_year, certified_age, gender, image_src, is_featured, nickname) " ..
+        "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id, distinct_id",
+        safe_quote(age),
+        safe_quote(birth_year),
+        safe_quote(certified_age),
+        safe_quote(gender),
+        safe_quote(image_src),
+        tostring(is_featured == true or is_featured == "true" and "TRUE" or "FALSE"),
+        safe_quote(nickname)
     )
     local res = db:query(sql)
-    return res
+
+    local distinct_id = res[1].distinct_id
+    return res, distinct_id
 end
 
 -- 요청 본문 파싱
@@ -36,17 +44,10 @@ if not data or not data.age or not data.birth_year or not data.certified_age or 
     return_error(ngx.HTTP_BAD_REQUEST, "profile datas are required")
 end
 
-
 -- 사용자 정보 추출
-local ctx_user_id = ngx.ctx.user_id
-if not ctx_user_id then
-    return_error(401, "Unauthorized: no user context")
-end
-
-local _, id_str = string.match(ctx_user_id, "([^:]+):([^:]+)")
-local user_id = tonumber(id_str)
+local user_id = ngx.ctx.user_id
 if not user_id then
-    return_error(400, "Invalid user_id format")
+    return_error(401, "Unauthorized: no user context")
 end
 
 -- 채널 정보 추출
@@ -62,7 +63,7 @@ if not db then
 end
 
 -- 사용자, 프로필, 채널 정보 조회
-local user_sql = string.format("SELECT id, role, type, distinct_id, is_global_seller, status FROM users WHERE id = %d", user_id)
+local user_sql = string.format("SELECT id, email, role, type, distinct_id, is_global_seller, status FROM users WHERE id = %d", user_id)
 local user_res = db:query(user_sql)
 if not user_res or not user_res[1] then
     return_error(500, "User not found")
@@ -70,11 +71,13 @@ end
 local user = user_res[1]
 
 local profile_sql = string.format("SELECT id, nickname FROM main_profiles WHERE user_id = %d", user_id)
-local profile_res = db:query(profile_sql)
-if not profile_res or not profile_res[1] then
+local main_profile_res = db:query(profile_sql)
+if not main_profile_res or not main_profile_res[1] then
     return_error(500, "Main profile not found")
 end
-local channel_user_profile = profile_res[1]
+
+local main_profile_id = main_profile_res[1].id
+local main_profile_nickname = main_profile_res[1].nickname
 
 local channel_sql = string.format("SELECT id, base_currency, status FROM channels WHERE id = %d", channel_id)
 local channel_res = db:query(channel_sql)
@@ -83,24 +86,47 @@ if not channel_res or not channel_res[1] then
 end
 local channel = channel_res[1]
 
--- profile 생성
-local profile_res = create_channel_user_profile(
-db, 
-data.age, 
-data.birth_year, 
-data.certified_age, 
-profile.distinct_id, 
-data.gender, 
-data.is_featured, 
-data.nickname
+-- profile 생성 후 조회
+local profile_res, distinct_id = create_channel_user_profile(
+    db, 
+    data.age, 
+    data.birth_year, 
+    data.certified_age,
+    data.gender, 
+    data.image_src, 
+    data.is_featured, 
+    data.nickname
 )
 if not profile_res or not profile_res[1] then
     return_error(500, "Failed to create profile")
 end
 
+-- 생성된 profile 다시 조회
+local profile_id = profile_res[1].id
+local get_profile_sql = string.format("SELECT * FROM profiles WHERE id = %d", profile_id)
+local profile_query_res = db:query(get_profile_sql)
+if not profile_query_res or not profile_query_res[1] then
+    return_error(500, "Failed to fetch created profile")
+end
+local channel_user_profile = profile_query_res[1]
+
+-- profile 구성
+local profile = {
+    id = channel_user_profile.id,
+    nickname = channel_user_profile.nickname,
+    age = data.age,
+    birthYear = data.birth_year,
+    certifiedAge = data.certified_age,
+    gender = data.gender,
+    imageSrc = channel_user_profile.image_src,
+    isFeatured = channel_user_profile.is_featured,
+    distinctId = distinct_id
+}
+
+-- 채널 멤버십 생성
 local channel_members = string.format("INSERT INTO channel_memberships (channel_id, profile_id) VALUES (%d, %d) RETURNING channel_id, profile_id", 
 channel_id, 
-profile.id
+profile_id
 )
 local channel_member_res = db:query(channel_members)
 if not channel_member_res then
@@ -109,20 +135,7 @@ if not channel_member_res then
     return
 end
 
--- profile 구성
-local app = profile_res[1]
-local profile = {
-        age = app.age,
-        birthYear = app.birth_year,
-        certifiedAge = app.certified_age,
-        distinctId = app.distinct_id,
-        gender = app.gender,
-        id = app.id,
-        imageSrc = app.image_src,
-        isFeatured = app.is_featured,
-        nickname = app.nickname
-    }
-
+-- JWT 생성
 local jti = jwt.custom_random_jti(32) 
 
 local payload = {
@@ -132,22 +145,19 @@ local payload = {
     iss = "publ",
     jti = jti,
     nbf = ngx.time() - 1,
-    sub = user.type .. ":" .. tostring(user.id),
-    typ = "access",
     seller = {
         distinctId = user.distinct_id,
-        email = data.email,  -- 사용자가 제공한 이메일 정보
+        email = user.email,  -- 사용자가 제공한 이메일 정보
         id = user.id,
         identity = "IDENTITY:" .. user.type .. ":" .. user.id,
         isGlobalSeller = user.is_global_seller,
         mainProfile = {
-            id = profile.id,
-            nickname = profile.nickname
+            id = main_profile_id,
+            nickname = main_profile_nickname
         },
         operatingChannels = {
             [tostring(channel.id)] = {
                 baseCurrency = channel.base_currency,
-                -- installedPApps = installedPApps,
                 profile = profile,
                 status = channel.status
             }
@@ -158,7 +168,10 @@ local payload = {
         role = user.role,
         status = user.status,
         type = user.type
-    }
+
+    },
+    sub = user.type .. ":" .. tostring(user.id),
+    typ = "access",
 }
 
 local token, err = jwt.sign(payload)
@@ -169,9 +182,8 @@ end
 -- 성공 응답
 ngx.status = ngx.HTTP_OK
 ngx.say(cjson.encode({
-    message = "Channel created successfully",
+    message = "profile created successfully",
     channel_id = channel_id,
-    pAppCode = data.p_app_code,
-    grantedAbilities = data.granted_abilities,
+    profile_id = channel_member_res.profile_id,
     token = token
 }))
