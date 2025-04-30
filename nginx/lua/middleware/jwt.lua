@@ -107,4 +107,16 @@ function _M.get_token_from_request()
     return token
 end
 
+function _M.custom_random_jti(length)
+    local chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    local result = {}
+
+    for i = 1, length do
+        local rand = math.random(1, #chars)
+        table.insert(result, chars:sub(rand, rand))
+    end
+
+    return table.concat(result)
+end
+
 return _M
