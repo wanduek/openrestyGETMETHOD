@@ -56,9 +56,9 @@ function _M.verify(token)
         ngx.exit(ngx.HTTP_UNAUTHORIZED)
     end
 
-    local claims = jwt_obj.payload
+    local payload = jwt_obj.payload
 
-    return true, claims
+    return true, payload
 end
 
 -- JWT 토큰 받기

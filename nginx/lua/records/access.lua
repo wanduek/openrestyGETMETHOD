@@ -51,6 +51,13 @@ if not channel_id_from_header_num then
     return
 end
 
+-- payload에 channel_id 값 유무 체크
+if not payload.seller or not payload.seller.operatingChannels then
+    ngx.status = ngx.HTTP_FORBIDDEN
+    ngx.say(cjson.encode({ error = "Unauthorized channel access" }))
+    return
+end
+
 -- JWT payload에서 운영 중인 채널 목록에서 헤더에 있는 channel_id가 존재하는지 확인
 local channel_access = payload.seller.operatingChannels[tostring(channel_id_from_header_num)]
 
