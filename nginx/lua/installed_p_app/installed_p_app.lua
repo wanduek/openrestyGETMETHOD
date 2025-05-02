@@ -12,7 +12,7 @@ end
 -- 헬퍼 함수: p_app 생성
 local function create_p_app(db, p_app_code, granted_abilities, channel_id)
     local sql = string.format(
-        "INSERT INTO p_app (p_app_code, granted_abilities, channel_id) " ..
+        "INSERT INTO p_apps (p_app_code, granted_abilities, channel_id) " ..
         "VALUES (%s, %s, %d) RETURNING id, p_app_code, granted_abilities",
         ngx.quote_sql_str(p_app_code),
         ngx.quote_sql_str(granted_abilities),
@@ -119,6 +119,7 @@ local payload = {
             [tostring(channel.id)] = {
                 baseCurrency = channel.base_currency,
                 installedPApps = installedPApps,
+                profile = profile,
                 status = channel.status
             }
         },

@@ -22,7 +22,7 @@ if not data or not data.channel_id then
     return ngx.exit(ngx.HTTP_OK)
 end
 
-local user_id = payload.sub
+local user_id = payload.seller.id
 local channel_id = data.channel_id
 
 -- DB 연결
@@ -35,7 +35,7 @@ end
 
 -- 채널 소속 여부 확인
 local check_sql = string.format(
-    "SELECT 1 FROM user_channels WHERE user_id = %s AND channel_id = %s",
+    "SELECT user_id, channel_id FROM user_channels WHERE user_id = %s AND channel_id = %s",
     ngx.quote_sql_str(user_id), ngx.quote_sql_str(channel_id)
 )
 

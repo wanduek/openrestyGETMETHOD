@@ -184,6 +184,6 @@ ngx.status = ngx.HTTP_OK
 ngx.say(cjson.encode({
     message = "profile created successfully",
     channel_id = channel_id,
-    profile_id = channel_member_res.profile_id,
+    profile_id = channel_user_profile.id,
     token = token
 }))

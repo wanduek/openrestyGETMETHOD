@@ -30,6 +30,18 @@ if not db then
     return
 end
 
+-- channel 조회
+local channel_sql = string.format("SELECT id, base_currency, status FROM channels WHERE id = %s", channel_id)
+
+local channel_res = db:query(channel_sql)
+
+if not channel_res or not channel_res[1] then
+    ngx.status = 404
+    ngx.say(cjson.encode({ error = "The channel was not found"}))
+end
+
+local channel = channel_res[1]
+
 -- 사용자가 해당 채널에 속해있는지 확인
 local check_sql = string.format(
     "SELECT 1 FROM user_channels WHERE user_id = %s AND channel_id = %s",
@@ -46,7 +58,7 @@ end
 
 -- 사용자 정보 가져오기
 local user_sql = string.format(
-    "SELECT id, email FROM users WHERE id = %s",
+    "SELECT * FROM users WHERE id = %s",
     ngx.quote_sql_str(user_id)
 )
 local user_res = db:query(user_sql)
@@ -58,14 +70,118 @@ if not user_res or not user_res[1] then
 end
 
 local user = user_res[1]
+local user_id = user_res[1].id
 
--- JWT 토큰 생성 (단일 채널 기반)
+-- main profile 조회
+local main_profile_sql = string.format("SELECT * FROM main_profiles where user_id = %s ", user_id)
+
+local main_profile_res = db:query(main_profile_sql)
+
+if not main_profile_res or not main_profile_res[1] then
+    ngx.status = 404 
+    ngx.say(cjson.encode({ error = "The main profile was not found" }))
+    return
+end
+
+local main_profile = main_profile_res[1]
+
+-- channel_memebers 조회
+local channel_membership_sql = string.format("SELECT id, channel_id, profile_id FROM channel_memberships WHERE channel_id = %s", channel_id)
+
+local channel_memebership_res = db:query(channel_membership_sql)
+
+if not channel_memebership_res or not channel_memebership_res[1] then
+    ngx.status = 404
+    ngx.say(cjson.encode({ error = "The channel_membership was not found"}))
+    return
+end
+
+local profile_id = channel_memebership_res[1].profile_id
+
+-- profile 조회
+local profile_sql = string.format("SELECT * FROM profiles WHERE id = %s", profile_id)
+
+local profile_res = db:query(profile_sql)
+
+if not profile_res or not profile_res[1] then
+    ngx.status = 404
+    ngx.say(cjson.encode({ error = "The profile was not found"}))
+    return
+end
+
+-- profile 구성
+local profile = {
+    id = profile_res[1].id,
+    nickname = profile_res[1].nickname,
+    age = profile_res[1].age,
+    birthYear = profile_res[1].birth_year,
+    certifiedAge = profile_res[1].certified_age,
+    gender = profile_res[1].gender,
+    imageSrc = profile_res[1].image_src,
+    isFeatured = profile_res[1].is_featured,
+    distinctId = profile_res[1].distinct_id
+}
+
+-- installedPApps 조회
+
+local installedPApps_sql = string.format("SELECT * FROM p_apps WHERE channel_id = %s",channel_id)
+
+local installedPApps_res = db:query(installedPApps_sql)
+if not installedPApps_res or not installedPApps_res[1] then
+    ngx.status = 404
+    ngx.say(cjson.encode({ error = "The pApp was not found"}))
+    return
+end
+
+-- installedPApps 구성
+local installedPApps = {}
+for _, app in ipairs(installedPApps_res) do
+    installedPApps[app.p_app_code] = {
+        grantedAbilities = { 
+            app.granted_abilities 
+        },
+        id = app.id
+    }
+end
+
+-- JWT 생성
+local jti = jwt.custom_random_jti(32) 
+
 local payload = {
-    operatingChannels = channel_id,
-    sub = tostring(user.id),
-    email = user.email,
+    aud = "publ",
+    exp = ngx.time() + 3600,
     iat = ngx.time(),
-    exp = ngx.time() + 3600
+    iss = "publ",
+    jti = jti,
+    nbf = ngx.time() - 1,
+    seller = {
+        distinctId = user.distinct_id,
+        email = user.email,  -- 사용자가 제공한 이메일 정보
+        id = user.id,
+        identity = "IDENTITY:" .. user.type .. ":" .. user.id,
+        isGlobalSeller = user.is_global_seller,
+        mainProfile = {
+            id = main_profile.id,
+            nickname = main_profile.nickname
+        },
+        operatingChannels = {
+            [channel_id] = {
+                baseCurrency = channel.base_currency,
+                installedPApps = installedPApps,
+                profile = profile,
+                status = channel.status
+            }
+        },
+        pAppAdditionalPermissions = { ["*"] = true },
+        pAppPermission = { "*" },
+        permissions = { "*" },
+        role = user.role,
+        status = user.status,
+        type = user.type
+
+    },
+    sub = user.type .. ":" .. tostring(user.id),
+    typ = "access",
 }
 
 local token, err = jwt.sign(payload)

@@ -97,7 +97,7 @@ end
 local token = jwt.get_token_from_request()
 
 -- 토큰 검증
-local ok, claims = jwt.verify(token)
+local ok, payload = jwt.verify(token)
 
 -- 토큰 검증 실패 시 응답
 if not ok then
@@ -107,7 +107,13 @@ if not ok then
 end
 
 -- JWT payload에서 channelId 추출
-local channel_id = claims.channelId
+local channel_id 
+for k, _ in pairs(payload.seller.operatingChannels) do
+    channel_id = k
+    break
+end
+
+local quoted_channel_id =ngx.quote_sql_str(tostring(channel_id))
 if not channel_id then
     ngx.status = ngx.HTTP_UNAUTHORIZED
     ngx.say(cjson.encode({ error = "Missing channelId in token payload" }))
@@ -120,7 +126,7 @@ local sql = string.format([[
     FROM resourceTransportRecords
     WHERE channel_id = %s
     LIMIT %d OFFSET %d
-]], ngx.quote_sql_str(channel_id), limit, offset)
+]], quoted_channel_id, limit, offset)
 
 
 if #where_clauses > 0 then

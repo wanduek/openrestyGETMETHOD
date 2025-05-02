@@ -15,7 +15,7 @@ end
 local token = jwt.get_token_from_request()
 
 -- 토큰 검증
-local ok, claims = jwt.verify(token)
+local ok, payload = jwt.verify(token)
 
 -- 토큰 검증 실패 시 응답
 if not ok then
@@ -51,8 +51,10 @@ if not channel_id_from_header_num then
     return
 end
 
--- JWT payload와 channelId 비교 (숫자 비교)
-if claims.channelId ~= channel_id_from_header_num then
+-- JWT payload에서 운영 중인 채널 목록에서 헤더에 있는 channel_id가 존재하는지 확인
+local channel_access = payload.seller.operatingChannels[tostring(channel_id_from_header_num)]
+
+if not channel_access then
     ngx.status = ngx.HTTP_FORBIDDEN
     ngx.say(cjson.encode({ error = "Unauthorized channel access" }))
     return
