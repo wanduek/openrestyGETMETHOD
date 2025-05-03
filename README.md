@@ -5,7 +5,7 @@
 - DB: POSTGRESQL, Redis
 - VERSION: 
 - openresty:latest
-- postgreSQL: 12,
+- postgreSQL: 14,
 - Redis: 7
 
 Library:
