@@ -50,14 +50,6 @@ if not main_profile then
     ngx.say(cjson.encode({ error = err }))
     return
 end
--- mainProfile 조회
--- local main_profile_query = string.format(
---     "SELECT * FROM main_profiles"
--- )
-
--- local main_profile_res = db:query(main_profile_query)
-
--- local main_profile = main_profile_res[1]
 
 -- JWT 생성
 local token = jwt.sign({
