@@ -114,7 +114,7 @@ for k, _ in pairs(payload.seller.operatingChannels) do
 end
 
 local quoted_channel_id =ngx.quote_sql_str(tostring(channel_id))
-if not channel_id then
+if not channel_id or not channel_id "" or not channel_id "null" then
     ngx.status = ngx.HTTP_UNAUTHORIZED
     ngx.say(cjson.encode({ error = "Missing channelId in token payload" }))
     return

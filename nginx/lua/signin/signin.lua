@@ -1,6 +1,7 @@
 local postgre = require "db.postgre"
 local cjson = require "cjson.safe"
 local jwt = require "middleware.jwt"
+local lua_query = require "lua_query"
 
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
@@ -13,7 +14,7 @@ if not data or not data.email or not data.password then
 end
 
 -- DB 연결
-local db, err = postgre.new()
+local db = postgre.new()
 if not db then
     ngx.status = 500
     ngx.say(cjson.encode({ error = "Failed to connect to database" }))
@@ -26,19 +27,13 @@ local query = string.format(
     ngx.quote_sql_str(data.email)
 )
 local res = db:query(query)
-
 if not res or #res == 0 then
     ngx.status = ngx.HTTP_UNAUTHORIZED
     ngx.say(cjson.encode({ error = "Invalid email or password" }))
     return
 end
 
-local user_id = res[1].id
-local distinct_id = res[1].distinct_id
-local type = res[1].type
-local role = res[1].role
-local user_status = res[1].status
-local is_global_seller = res[1].is_global_seller
+local user = res[1]
 
 -- 비밀번호 비교
 if res[1].password ~= data.password then
@@ -47,29 +42,22 @@ if res[1].password ~= data.password then
     return
 end
 
-function custom_random_jti(length)
-    local chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-    local result = {}
+local jti = jwt.custom_random_jti(32)
 
-    for i = 1, length do
-        local rand = math.random(1, #chars)
-        table.insert(result, chars:sub(rand, rand))
-    end
-
-    return table.concat(result)
+local main_profile, err= lua_query.get_main_profile(db, user.id)
+if not main_profile then
+    ngx.status = 404
+    ngx.say(cjson.encode({ error = err }))
+    return
 end
-
-local jti = custom_random_jti(32)
-
 -- mainProfile 조회
-local main_profile_query = string.format(
-    "SELECT * FROM main_profiles"
-)
+-- local main_profile_query = string.format(
+--     "SELECT * FROM main_profiles"
+-- )
 
-local main_profile_res = db:query(main_profile_query)
+-- local main_profile_res = db:query(main_profile_query)
 
-local main_profile_id = main_profile_res[1].id
-local main_profile_nickname = main_profile_res[1].nickname
+-- local main_profile = main_profile_res[1]
 
 -- JWT 생성
 local token = jwt.sign({
@@ -80,14 +68,14 @@ local token = jwt.sign({
     jti = jti,
     nbf = ngx.time() - 1,
     seller = {
-        distinctId = distinct_id ,
+        distinctId = user.distinct_id ,
         email = data.email,
-        id = user_id,
-        identity = "IDENTITY:" .. type .. ":" .. user_id,
-        isGlobalSeller = is_global_seller,
+        id = user.id,
+        identity = "IDENTITY:" .. user.type .. ":" .. user.id,
+        isGlobalSeller = user.is_global_seller,
         mainProfile = {
-            id = main_profile_id,
-            nickname = main_profile_nickname
+            id = main_profile.id,
+            nickname = main_profile.nickname
         },
         pAppAdditionalPermissions = {
             ["*"] = true
@@ -98,15 +86,15 @@ local token = jwt.sign({
         permissions = {
             "*"
         },
-        role = role,
-        status = user_status,
-        type = type
+        role = user.role,
+        status = user.status,
+        type = user.type
     },
-    sub = type .. ":" .. tostring(user_id),
+    sub = user.type .. ":" .. tostring(user.id),
     typ = "access"
 })
 
-ngx.status = ngx.HTTP_OK
+ngx.status = 200
 ngx.say(cjson.encode({
     message = "Signin successful",
     token = token

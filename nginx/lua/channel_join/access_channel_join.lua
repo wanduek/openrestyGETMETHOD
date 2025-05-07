@@ -22,8 +22,6 @@ if not data or not data.channel_id then
     return ngx.exit(ngx.HTTP_OK)
 end
 
-local user_id = payload.seller.id
-local channel_id = data.channel_id
 
 -- DB 연결
 local db = postgre.new()
@@ -32,6 +30,9 @@ if not db then
     ngx.say(cjson.encode({ error = "Failed to connect to DB" }))
     return ngx.exit(ngx.HTTP_OK)
 end
+
+local user_id = payload.seller.id
+local channel_id = data.channel_id
 
 -- 채널 소속 여부 확인
 local check_sql = string.format(

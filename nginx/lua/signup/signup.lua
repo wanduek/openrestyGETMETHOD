@@ -31,20 +31,7 @@ if res and #res > 0 then
     return
 end
 
-function custom_random_jti(length)
-    local chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-    local result = {}
-
-    for i = 1, length do
-        local rand = math.random(1, #chars)
-        table.insert(result, chars:sub(rand, rand))
-    end
-
-    return table.concat(result)
-end
-
-local jti = custom_random_jti(32)
-
+local jti = jwt.custom_random_jti(32)
 
 -- 사용자 정보 삽입
 local insert_sql = string.format(
@@ -63,11 +50,7 @@ if not insert_res or not insert_res[1] or not insert_res[1].id then
     return
 end
 
-local user_id = insert_res[1].id
-local user_status = insert_res[1].status
-local is_global_seller = insert_res[1].is_global_seller
-
-local distinct_id = insert_res[1].distinct_id
+local user = insert_res[1]
 
 -- main_profiles에 insert
 local insert_profile_sql = string.format([[
@@ -77,7 +60,7 @@ local insert_profile_sql = string.format([[
 
 local main_profile_res = db:query(insert_profile_sql)
 
-local main_profile_id = main_profile_res[1].id
+local main_profile = main_profile_res[1]
 
 -- JWT 생성
 local token, err = jwt.sign({
@@ -88,13 +71,13 @@ local token, err = jwt.sign({
     jti = jti,
     nbf = ngx.time() - 1,
     seller = {
-        distinctId = distinct_id,
+        distinctId = user.distinct_id,
         email = data.email,
-        id = user_id,
-        identity = "IDENTITY:" .. data.type .. ":" .. user_id,
-        isGlobalSeller = is_global_seller,
+        id = user.id,
+        identity = "IDENTITY:" .. data.type .. ":" .. user.id,
+        isGlobalSeller = user.is_global_seller,
         mainProfile = {
-            id = main_profile_id,
+            id = main_profile.id,
             nickname = data.nickname
         },
         pAppAdditionalPermissions = {
@@ -107,22 +90,12 @@ local token, err = jwt.sign({
             "*"
         },
         role = data.role,
-        status = user_status,
+        status = user.status,
         type = data.type
     },
-    sub = data.type .. ":" .. tostring(user_id),
+    sub = data.type .. ":" .. tostring(user.id),
     typ = "access"
 })
-
-if not token then
-    ngx.log(ngx.ERR, "[JWT ERROR] failed to issue token: ", err)
-    ngx.log(ngx.ERR, "secret_key: ", secret)
-    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-    ngx.say(cjson.encode({ error = "Failed to issue token", message = err }))
-    return
-end
-
-ngx.log(ngx.ERR, "[JWT] token: ", token)
 
 -- 응답
 ngx.status = ngx.HTTP_OK
