@@ -1,15 +1,9 @@
 local postgre = require "db.postgre"
 local jwt = require "middleware.jwt"
 local cjson = require "cjson.safe"
+local lua_query = require "lua_query"
 
--- 헬퍼 함수: 에러 응답
-local function return_error(status, msg)
-    ngx.status = status
-    ngx.say(cjson.encode({ error = msg }))
-    return ngx.exit(status)
-end
-
--- 헬퍼 함수: p_app 생성
+-- p_app 생성
 local function create_p_app(db, p_app_code, granted_abilities, channel_id)
     local sql = string.format(
         "INSERT INTO p_apps (p_app_code, granted_abilities, channel_id) " ..
@@ -32,22 +26,10 @@ if not data or not data.p_app_code or not data.granted_abilities then
 end
 
 -- 사용자 정보 추출
-local ctx_user_id = ngx.ctx.user_id
-if not ctx_user_id then
-    return_error(401, "Unauthorized: no user context")
-end
-
-local _, id_str = string.match(ctx_user_id, "([^:]+):([^:]+)")
-local user_id = tonumber(id_str)
-if not user_id then
-    return_error(400, "Invalid user_id format")
-end
+local user_id = ngx.ctx.user_id
 
 -- 채널 정보 추출
 local channel_id = ngx.ctx.channel_id
-if not channel_id then
-    return_error(400, "Missing channel_id in context")
-end
 
 -- DB 연결
 local db = postgre.new()
@@ -56,26 +38,28 @@ if not db then
 end
 
 -- 사용자, 프로필, 채널 정보 조회
-local user_sql = string.format("SELECT id, role, type, distinct_id, is_global_seller, status FROM users WHERE id = %d", user_id)
-local user_res = db:query(user_sql)
-if not user_res or not user_res[1] then
-    return_error(500, "User not found")
+local user, err = lua_query.get_user_by_id(db, user_id)
+if not user then 
+    ngx.status = 404
+    ngx.say(cjson.encode({ error = err }))
+    return
 end
-local user = user_res[1]
 
-local profile_sql = string.format("SELECT id, nickname FROM main_profiles WHERE user_id = %d", user_id)
-local profile_res = db:query(profile_sql)
-if not profile_res or not profile_res[1] then
-    return_error(500, "Main profile not found")
+-- seller의 main_profile 조회
+local main_profile = lua_query.get_main_profile(db, user_id)
+if not main_profile then
+    ngx.status = 404
+    ngx.say(cjson.encode({ error = err }))
+    return
 end
-local profile = profile_res[1]
 
-local channel_sql = string.format("SELECT id, base_currency, status FROM channels WHERE id = %d", channel_id)
-local channel_res = db:query(channel_sql)
-if not channel_res or not channel_res[1] then
-    return_error(500, "Channel not found")
+-- channel 조회
+local channel = lua_query.get_channel_by_id(db, channel_id)
+if not channel then
+    ngx.status = 404
+    ngx.say(cjson.encode({ error = err }))
+    return
 end
-local channel = channel_res[1]
 
 -- p_app 생성
 local p_app_res = create_p_app(db, data.p_app_code, data.granted_abilities, channel_id)
@@ -96,14 +80,14 @@ end
 
 local jti = jwt.custom_random_jti(32) 
 
-local payload = {
+local payload = jwt.sign{
     aud = "publ",
     exp = ngx.time() + 3600,
     iat = ngx.time(),
     iss = "publ",
     jti = jti,
     nbf = ngx.time() - 1,
-    sub = user.type .. ":" .. tostring(user.id),
+    sub = user.type .. ":" .. user.id,
     typ = "access",
     seller = {
         distinctId = user.distinct_id,
@@ -112,8 +96,8 @@ local payload = {
         identity = "IDENTITY:" .. user.type .. ":" .. user.id,
         isGlobalSeller = user.is_global_seller,
         mainProfile = {
-            id = profile.id,
-            nickname = profile.nickname
+            id = main_profile.id,
+            nickname = main_profile.nickname
         },
         operatingChannels = {
             [tostring(channel.id)] = {
@@ -131,10 +115,10 @@ local payload = {
         type = user.type
     }
 }
-
-local token, err = jwt.sign(payload)
-if not token then
-    return_error(500, "Failed to create JWT: " .. (err or "unknown error"))
+if not payload then
+    ngx.status = 500
+    ngx.say(cjson.encode({ error = "Failed to create JWT: " .. (err or "unknown error")}))
+    return
 end
 
 -- 성공 응답
@@ -144,5 +128,5 @@ ngx.say(cjson.encode({
     channel_id = channel_id,
     pAppCode = data.p_app_code,
     grantedAbilities = data.granted_abilities,
-    token = token
+    token = payload
 }))
