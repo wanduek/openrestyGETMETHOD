@@ -1,12 +1,18 @@
 local cjson = require "cjson"
 local jwt = require "middleware.jwt"
 local postgre = require "db.postgre"
+if ngx.req.get_method() ~= "POST" then
+    ngx.status = 405
+    ngx.header["Content-Type"] = "application/json"
+    ngx.say(cjson.encode({ error = "Method not allowed" }))
+    return
+end
 
 -- JWT 토큰 파싱
 local token = jwt.get_token_from_request()
 local verified, payload = jwt.verify(token)
 
-if not verified or not payload or not payload.sub then
+if not verified or not payload or not payload.seller.id then
     ngx.status = 401
     ngx.say(cjson.encode({ error = "Invalid token" }))
     return ngx.exit(ngx.HTTP_OK)
@@ -48,6 +54,5 @@ if not check_res or #check_res == 0 then
     return ngx.exit(ngx.HTTP_OK)
 end
 
--- access 통과 
 ngx.ctx.user_id = user_id
 ngx.ctx.channel_id = channel_id
