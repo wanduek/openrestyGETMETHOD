@@ -8,7 +8,7 @@ local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
 
 if not data or not data.name then
-    ngx.status = ngx.HTTP_BAD_REQUEST
+    ngx.status = 400
     ngx.say(cjson.encode({ error = "Channel name is required" }))
     return
 end
@@ -36,9 +36,10 @@ end
 
 local channel = res[1]
 
--- 사용자 정보 가져오기
-local user, err = lua_query.get_user_by_id(db)
+local user_id = ngx.ctx.user_id
 
+-- 사용자 정보 가져오기
+local user, err = lua_query.get_user_by_id(db, user_id)
 if not user then
     ngx.status = 404
     ngx.say(cjson.encode({ error = err }))
@@ -48,7 +49,7 @@ end
 -- 유저와 채널 연결
 local user_channel_sql = string.format(
     "INSERT INTO user_channels (user_id, channel_id) VALUES (%d, %d)",
-    user.id, channel.id
+    user_id, channel.id
 )
 
 local user_channel_res = db:query(user_channel_sql)
@@ -63,13 +64,11 @@ local channel_ids = ngx.ctx.channel_ids or {}
 table.insert(channel_ids, channel.id)
 
 -- mainProfile 조회
-local main_profile, err = lua_query.get_main_profile(db, user.id)
+local main_profile, err = lua_query.get_main_profile(db, user_id)
 if not main_profile then
     ngx.status = 404
     ngx.say(cjson.encode({ error = err }))
 end
-
-local main_profile = res[1]
 
 local jti = jwt.custom_random_jti(32)
 
@@ -94,9 +93,7 @@ local payload = jwt.sign({
         operatingChannels = {
             [tostring(channel.id)] = {
                 baseCurrency = channel.base_currency,
-                -- installedPApps = installedPApps
             },
-            -- profile = profile,
             status = channel.status,
         },
         pAppAdditionalPermissions = {
@@ -112,7 +109,7 @@ local payload = jwt.sign({
         status = user.status,
         type = user.type
     },
-    sub = user.type .. ":" .. tostring(user.id),
+    sub = user.type .. ":" .. user_id,
     typ = "access"
 })
 
