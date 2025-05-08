@@ -4,6 +4,11 @@ local jwt = require "middleware.jwt"
 local lua_query = require "lua_query"
 local response = require "response"
 
+-- 요청 메서드 확인
+if ngx.req.get_method() ~= "POST" then
+    return response.method_not_allowed("Method not allowed")
+end
+
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
@@ -32,9 +37,13 @@ if res[1].password ~= data.password then
     return response.unauthorized("Invalid password")
 end
 
-local jti = jwt.custom_random_jti(32)
-
 local main_profile = lua_query.get_main_profile(db, user.id)
+
+-- 커넥션 풀에 반납
+postgre.keepalive(db)
+
+-- jti 생성
+local jti = jwt.custom_random_jti(32)
 
 -- JWT 생성
 local payload = jwt.sign({
@@ -71,10 +80,10 @@ local payload = jwt.sign({
     typ = "access"
 })
 
-local data = {
+local success_data = {
     message = "Signin successful",
     token = payload
 }
 
-response.success(data)
+response.success(success_data)
 

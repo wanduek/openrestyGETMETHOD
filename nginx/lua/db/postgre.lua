@@ -11,7 +11,7 @@ function _M.new()
 
     db:set_timeout(1000)
 
-    local ok, err = db:connect({
+    local ok = db:connect({
         host = os.getenv("DB_HOST"),
         port = tonumber(os.getenv("DB_PORT")),
         database = os.getenv("DB_NAME"),

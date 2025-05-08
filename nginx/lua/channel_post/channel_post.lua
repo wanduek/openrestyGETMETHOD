@@ -51,6 +51,9 @@ table.insert(channel_ids, channel.id)
 -- mainProfile 조회
 local main_profile = lua_query.get_main_profile(db, user_id)
 
+-- 커넥션 풀에 반납
+postgre.keepalive(db)
+
 local jti = jwt.custom_random_jti(32)
 
 -- JWT 생성

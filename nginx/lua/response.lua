@@ -44,7 +44,7 @@ function _M.not_found(message)
     return ngx.exit(404)
 end
 
--- 메서드가 올바르지 않음 
+-- 허용되지 않은 메소드 
 function _M.method_not_allowed(message)
     ngx.status = 405
     ngx.say(cjson.encode({ error = message }))

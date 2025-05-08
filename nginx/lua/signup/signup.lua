@@ -3,6 +3,11 @@ local cjson = require "cjson.safe"
 local jwt = require "middleware.jwt"
 local response = require "response"
 
+-- 요청 메서드 확인
+if ngx.req.get_method() ~= "POST" then
+    return response.method_not_allowed("Method not allowed")
+end
+
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
@@ -23,8 +28,6 @@ local res = db:query(string.format(
 if res and #res > 0 then
     return response.conflict("Email already exists")
 end
-
-local jti = jwt.custom_random_jti(32)
 
 -- 사용자 정보 삽입
 local insert_sql = string.format(
@@ -53,8 +56,14 @@ local main_profile_res = db:query(insert_profile_sql)
 
 local main_profile = main_profile_res[1]
 
+-- 커넥션 풀에 반납
+postgre.keepalive(db)
+
+-- jti 생성
+local jti = jwt.custom_random_jti(32)
+
 -- JWT 생성
-local token, err = jwt.sign({
+local payload = jwt.sign({
     aud = "publ",
     exp = ngx.time() + 3600,
     iat = ngx.time(),
@@ -84,13 +93,13 @@ local token, err = jwt.sign({
         status = user.status,
         type = data.type
     },
-    sub = data.type .. ":" .. tostring(user.id),
+    sub = data.type .. ":" .. user.id,
     typ = "access"
 })
 
--- 응답
-ngx.status = ngx.HTTP_OK
-ngx.say(cjson.encode({
+local success_data = {
     message = "User registered successfully",
-    token = token
-}))
+    token = payload
+}
+-- 응답
+response.success(success_data)
