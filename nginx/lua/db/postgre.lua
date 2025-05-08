@@ -1,4 +1,5 @@
 local pg = require "resty.postgres"
+local response = require "response"
 
 local _M = {}
 
@@ -19,7 +20,7 @@ function _M.new()
     })
 
     if not ok then
-        return nil, "Failed to connect postgres: " .. err
+        return response.internal_server_error("Failed to connect to database")
     end
 
     return db, nil

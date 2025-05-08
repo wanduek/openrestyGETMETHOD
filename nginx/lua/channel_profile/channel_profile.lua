@@ -2,12 +2,13 @@ local postgre = require "db.postgre"
 local jwt = require "middleware.jwt"
 local cjson = require "cjson.safe"
 local lua_query = require "lua_query"
+local response = require "response"
 
 -- profiles 생성
 local function create_channel_user_profile(db, data)
     local function safe_quote(value)
         if value == nil or value == "null" then
-            return "NULL"
+            return response.internal_server_error("NULL")
         else
             return ngx.quote_sql_str(value)
         end
@@ -38,9 +39,7 @@ local data = cjson.decode(body)
 local required_profile = { "age", "birth_year", "certified_age", "gender", "image_src", "is_featured", "nickname"}
 for _, field in ipairs(required_profile) do
     if not data[field] then 
-        ngx.status = 400
-        ngx.say(cjson.encode({ error = field .. "is required"}))
-        return
+        return response.bad_request(field .. "is required")
     end 
 end
 
@@ -53,25 +52,15 @@ local channel_id = ngx.ctx.channel_id
 
 -- DB 연결
 local db = postgre.new()
-if not db then
-    ngx.status = 500
-    ngx.say(cjson.encode({ error = "Failed to connect to DB"}))
-    return
-end
 
 -- 사용자, 프로필, 채널 정보 조회
-local user, err = lua_query.get_user_by_id(db, user_id)
-if not user then
-    ngx.status = 404
-    ngx.say(cjson.encode({ error = err }))
-    return
-end
+local user = lua_query.get_user_by_id(db, user_id)
 
 -- seller 메인 프로필 조회
 local main_profile, err = lua_query.get_main_profile(db, user_id)
 if not main_profile then
     ngx.status = 404
-    ngx.say(cjson.encode({ error = "not found main profile" }))
+    ngx.say(cjson.encode({ error = err }))
     return
 end
 
@@ -79,7 +68,7 @@ end
 local channel, err = lua_query.get_channel_by_id(db, channel_id)
 if not channel then
     ngx.status = 404
-    ngx.say(cjson.encode({ error = "not foound channel"}))
+    ngx.say(cjson.encode({ error = err }))
     return
 end
 
@@ -88,9 +77,7 @@ local profile = create_channel_user_profile(
     db, data
 )
 if not profile then
-    ngx.status = 500
-    ngx.say(cjson.encode({ error = "Failed to create profile" }))
-    return
+    return resposne.internal_server_error("Failed to create profile")
 end
 
 local profile_id = profile.id
@@ -102,9 +89,7 @@ profile_id
 )
 local channel_member_res = db:query(channel_members)
 if not channel_member_res then
-    ngx.status = 500
-    ngx.say(cjson.encode({ error = "Fail to create channel membership"}))
-    return
+    return response.internal_server_error("Fail to create channel membership")
 end
 
 -- JWT 생성
@@ -139,7 +124,7 @@ local payload = jwt.sign{
                     gender = data.gender,
                     imageSrc = profile.image_src,
                     isFeatured = profile.is_featured,
-                    distinctId = profile.distinctId
+                    distinctId = profile.distinct_id
                 },
                 status = channel.status
             }
@@ -156,11 +141,12 @@ local payload = jwt.sign{
     typ = "access",
 }
 
--- 성공 응답
-ngx.status = 200
-ngx.say(cjson.encode({
+local success_data = {
     message = "profile created successfully",
     channel_id = channel_id,
     profile_id = profile.id,
     token = payload
-}))
+}
+
+-- 성공 응답
+response.success(success_data)

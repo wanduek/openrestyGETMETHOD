@@ -2,24 +2,18 @@ local postgre = require "db.postgre"
 local cjson = require "cjson.safe"
 local jwt = require "middleware.jwt"
 local lua_query = require "lua_query"
+local response = require "response"
 
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
 
 if not data or not data.email or not data.password then
-    ngx.status = ngx.HTTP_BAD_REQUEST
-    ngx.say(cjson.encode({ error = "Email and password required" }))
-    return
+    return response.bad_request("Email and password required")
 end
 
 -- DB 연결
 local db = postgre.new()
-if not db then
-    ngx.status = 500
-    ngx.say(cjson.encode({ error = "Failed to connect to database" }))
-    return
-end
 
 -- 이메일로 사용자 조회
 local query = string.format(
@@ -28,31 +22,22 @@ local query = string.format(
 )
 local res = db:query(query)
 if not res or #res == 0 then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = "Invalid email or password" }))
-    return
+    return response.unauthorized("Invalid email")
 end
 
 local user = res[1]
 
 -- 비밀번호 비교
 if res[1].password ~= data.password then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = "Invalid email or password" }))
-    return
+    return response.unauthorized("Invalid password")
 end
 
 local jti = jwt.custom_random_jti(32)
 
-local main_profile, err= lua_query.get_main_profile(db, user.id)
-if not main_profile then
-    ngx.status = 404
-    ngx.say(cjson.encode({ error = err }))
-    return
-end
+local main_profile = lua_query.get_main_profile(db, user.id)
 
 -- JWT 생성
-local token = jwt.sign({
+local payload = jwt.sign({
     aud = "publ",
     exp = ngx.time() + 3600,
     iat = ngx.time(),
@@ -86,8 +71,10 @@ local token = jwt.sign({
     typ = "access"
 })
 
-ngx.status = 200
-ngx.say(cjson.encode({
+local data = {
     message = "Signin successful",
-    token = token
-}))
+    token = payload
+}
+
+response.success(data)
+

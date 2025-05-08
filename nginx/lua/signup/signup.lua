@@ -7,9 +7,7 @@ ngx.req.read_body()
 local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
 if not data or not data.email or not data.password then
-    ngx.status = ngx.HTTP_BAD_REQUEST
-    ngx.say(cjson.encode({ error = "Email and password required" }))
-    return
+    return response.bad_request("Email and password required")
 end
 
 -- DB 연결
@@ -23,9 +21,7 @@ local res = db:query(string.format(
     "SELECT * FROM users WHERE email = %s", ngx.quote_sql_str(data.email)
 ))
 if res and #res > 0 then
-    ngx.status = ngx.HTTP_CONFLICT
-    ngx.say(cjson.encode({ error = "Email already exists" }))
-    return
+    return response.conflict("Email already exists")
 end
 
 local jti = jwt.custom_random_jti(32)
@@ -42,9 +38,7 @@ local insert_sql = string.format(
 local insert_res = db:query(insert_sql)
 
 if not insert_res or not insert_res[1] or not insert_res[1].id then
-    ngx.status = 500
-    ngx.say(cjson.encode({ error = "Failed to insert user" }))
-    return
+    return resposne.internal_server_error("Failed to insert user")
 end
 
 local user = insert_res[1]

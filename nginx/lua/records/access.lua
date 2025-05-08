@@ -1,14 +1,10 @@
 local cjson = require "cjson"
 local jwt = require "middleware.jwt"
+local response = require "response"
 
 -- 요청 메서드 확인
 if ngx.req.get_method() ~= "GET" then
-    ngx.status = 405
-    ngx.header["Content-Type"] = "application/json"
-    ngx.say(cjson.encode({
-        error = "Method not allowed"
-    }))
-    return
+    return response.method_not_allowed("Method not allowed")
 end
 
 -- Authorization 헤더에서 토큰을 추출
@@ -19,9 +15,7 @@ local ok, payload = jwt.verify(token)
 
 -- 토큰 검증 실패 시 응답
 if not ok then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = "Invalid token" }))
-    return
+    return response.unauthorized("Invalid token")
 end
 
 -- X-Channel-Id 헤더 값 가져오기
@@ -30,15 +24,12 @@ local channel_id_from_header = headers["X-Channel-Id"]
 
 -- X-Channel-Id가 여러 번 포함되었는지 확인
 if type(channel_id_from_header) == "table" then
-    ngx.status = ngx.HTTP_BAD_REQUEST
-    ngx.say(cjson.encode({ error = "Mutiple X-Channel-Id headers are not allowed" }))
+    return response.bad_request("Mutiple X-Channel-Id headers are not allowed")
 end
 
 -- X-Channel-Id가 비어 있거나 null인 경우 에러 처리
 if not channel_id_from_header or channel_id_from_header == "" or channel_id_from_header == "null" then
-    ngx.status = ngx.HTTP_BAD_REQUEST
-    ngx.say(cjson.encode({ error = "Missing or invalid X-Channel-Id header" }))
-    return
+    return response.bad_request("Missing or invalid X-Channel-Id header")
 end
 
 -- channel_id_from_header 값을 숫자로 변환
@@ -46,25 +37,12 @@ local channel_id_from_header_num = tonumber(channel_id_from_header)
 
 -- 변환 실패 시 처리
 if not channel_id_from_header_num then
-    ngx.status = ngx.HTTP_BAD_REQUEST
-    ngx.say(cjson.encode({ error = "X-Channel-Id must be a valid number" }))
-    return
+    return response.bad_request("X-Channel-Id must be a valid number")
 end
 
 -- payload에 channel_id 값 유무 체크
 if not payload.seller or not payload.seller.operatingChannels then
-    ngx.status = ngx.HTTP_FORBIDDEN
-    ngx.say(cjson.encode({ error = "Unauthorized channel access" }))
-    return
-end
-
--- JWT payload에서 운영 중인 채널 목록에서 헤더에 있는 channel_id가 존재하는지 확인
-local channel_access = payload.seller.operatingChannels[tostring(channel_id_from_header_num)]
-
-if not channel_access then
-    ngx.status = ngx.HTTP_FORBIDDEN
-    ngx.say(cjson.encode({ error = "Unauthorized channel access" }))
-    return
+    return response.forbidden("Unauthorized channel access")
 end
 
 -- 레이트 리미트 로직
@@ -76,9 +54,7 @@ local req = limit:incr(uri, 1, 0, 10)
 
 -- 요청 실패 시 내부 서버 오류 처리
 if not req then
-    ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
-    ngx.say(cjson.encode({ error = "Failed to increment request count" }))
-    return
+    return response.too_many_requests("Failed to increment request count")
 end
 
 -- 레이트 리미트 초과 시 처리

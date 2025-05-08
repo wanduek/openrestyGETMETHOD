@@ -1,11 +1,10 @@
 local cjson = require "cjson"
 local jwt = require "middleware.jwt"
 local postgre = require "db.postgre"
+local response = require "response"
+local lua_query = require "lua_query"
 if ngx.req.get_method() ~= "POST" then
-    ngx.status = 405
-    ngx.header["Content-Type"] = "application/json"
-    ngx.say(cjson.encode({ error = "Method not allowed" }))
-    return
+    return response.method_not_allowed("Method not allowed")
 end
 
 -- JWT 토큰 파싱
@@ -13,9 +12,7 @@ local token = jwt.get_token_from_request()
 local verified, payload = jwt.verify(token)
 
 if not verified or not payload or not payload.seller.id then
-    ngx.status = 401
-    ngx.say(cjson.encode({ error = "Invalid token" }))
-    return ngx.exit(ngx.HTTP_OK)
+    return response.unauthorized("Invalid token")
 end
 
 ngx.req.read_body()
@@ -23,36 +20,17 @@ local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
 
 if not data or not data.channel_id then
-    ngx.status = 400
-    ngx.say(cjson.encode({ error = "channel_id is required" }))
-    return ngx.exit(ngx.HTTP_OK)
+    return response.bad_request("channel_id is required")
 end
-
 
 -- DB 연결
 local db = postgre.new()
-if not db then
-    ngx.status = 500
-    ngx.say(cjson.encode({ error = "Failed to connect to DB" }))
-    return ngx.exit(ngx.HTTP_OK)
-end
 
 local user_id = payload.seller.id
 local channel_id = data.channel_id
 
 -- 채널 소속 여부 확인
-local check_sql = string.format(
-    "SELECT user_id, channel_id FROM user_channels WHERE user_id = %s AND channel_id = %s",
-    ngx.quote_sql_str(user_id), ngx.quote_sql_str(channel_id)
-)
-
-local check_res = db:query(check_sql)
-
-if not check_res or #check_res == 0 then
-    ngx.status = 403
-    ngx.say(cjson.encode({ error = "User does not belong to this channel" }))
-    return ngx.exit(ngx.HTTP_OK)
-end
+lua_query.get_user_channel(db, user_id, channel_id)
 
 ngx.ctx.user_id = user_id
 ngx.ctx.channel_id = channel_id

@@ -3,6 +3,7 @@ local cjson = require "cjson"
 local utils = require "utils"
 local redis = require "db.redis"
 local jwt = require "middleware.jwt"
+local response = require "response"
 
 -- 페이지네이션 파라미터 가져오기
 local args = ngx.req.get_uri_args()
@@ -40,7 +41,7 @@ end
 local cache_key = "resourceTransportRecords:" .. page .. ":" .. limit
 
 -- Redis에서 캐시 조회
-local cached_data, err = redis.get(cache_key)
+local cached_data = redis.get(cache_key)
 if cached_data then
     ngx.header["Content-Type"] = "application/json"
     ngx.say(cjson.encode({
@@ -51,21 +52,12 @@ end
 
 -- PostgreSQL 연결
 local db = postgre.new()
-if not db then
-    ngx.status = 500
-    ngx.header["Content-Type"] = "application/json"
-    ngx.say(cjson.encode({
-        error = "Failed to create database object"
-    }))
-    return
-end
 
 -- 총 레코드 수 조회
 local count_sql = "SELECT COUNT(*) as total FROM resourceTransportRecords"
 local res, err = db:query(count_sql)
 if not res then
     ngx.status = 500
-    ngx.header["Content-Type"] = "application/json"
     ngx.say(cjson.encode({
         error = "Failed to query total count: " .. (err or "unknown error")
     }))
@@ -101,9 +93,7 @@ local ok, payload = jwt.verify(token)
 
 -- 토큰 검증 실패 시 응답
 if not ok then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = "Invalid token" }))
-    return
+    return response.unauthorized("Invalid token")
 end
 
 -- JWT payload에서 channelId 추출
@@ -115,9 +105,7 @@ end
 
 local quoted_channel_id =ngx.quote_sql_str(tostring(channel_id))
 if not channel_id or not channel_id "" or not channel_id "null" then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = "Missing channelId in token payload" }))
-    return
+    return response.unauthorized("Missing channelId in token payload")
 end
 
 
@@ -135,12 +123,7 @@ end
 
 local records, err = db:query(sql)
 if not records then
-    ngx.status = 500
-    ngx.header["Content-Type"] = "application/json"
-    ngx.say(cjson.encode({
-        error = "Failed to query records: " .. (err or "unknown error")
-    }))
-    return
+    return response.internal_server_error("Failed to query records: " .. (err or "unknown error"))
 end
 
 local camel_records = utils.rows_to_camel(records)
@@ -166,6 +149,5 @@ if not success then
     ngx.log(ngx.ERR, "Failed to cache data in redis: ", err)
 end
 
--- JSON 응답 반환
-ngx.header["Content-Type"] = "application/json"
-ngx.say(cjson.encode(response))
+-- 성공 응답 반환
+response.success(response)

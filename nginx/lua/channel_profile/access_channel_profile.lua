@@ -1,17 +1,16 @@
 local jwt = require "middleware.jwt"
 local cjson = require "cjson.safe"
+local response = require "response"
 
 local token = jwt.get_token_from_request()
 
 local ok, payload = jwt.verify(token)
 
 if not ok then
-    ngx.status = 401
-    ngx.say(cjson.encdode({ error = "Invalid JWT token: " .. (payload or "unknown") }))
+    return response.unauthorized("Invalid JWT token: " .. (payload or "unknown"))
 end
 if not payload.seller.id then
-    ngx.statues = 404
-    ngx.say = (cjson.encode({ error = "Not found user_id in payload"}))
+    return response.not_found("Not found user_id in payload")
 end
 
 ngx.ctx.user_id = payload.seller.id
@@ -37,9 +36,7 @@ local operatingChannels = payload.seller and payload.seller.operatingChannels
 local channel_id = extract_first_channel_id(operatingChannels)
 
 if not channel_id then
-    ngx.status = 401
-    ngx.say(cjson.encode({ error = "Missing or invalid channel_id in JWT" }))
-    return 
+    return response.unauthorized("Missing or invalid channel_id in JWT")
 end
 
 ngx.ctx.channel_id = channel_id

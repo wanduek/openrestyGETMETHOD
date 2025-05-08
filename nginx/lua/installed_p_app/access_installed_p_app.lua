@@ -1,19 +1,19 @@
 local jwt = require "middleware.jwt"
-local cjson = require "cjson.safe"
+local response = require "response"
+
+-- 요청 메서드 확인
+if ngx.req.get_method() ~= "POST" then
+    return response.method_not_allowed("Method not allowed")
+end
 
 local token, err = jwt.get_token_from_request()
 if not token then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = err }))
-    return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+    return response.unauthorized(err)
 end
 
 local ok, payload = jwt.verify(token)
 if not ok then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({  error = "Invalid JWT token: " .. (payload or "unknown") }))
-    ngx.exit(ngx.HTTP_UNAUTHORIZED)
-    return 
+    return response.unauthorized("Invalid JWT token: " .. (payload or "unknown"))
 end
 
 ngx.ctx.user_id = payload.seller.id
@@ -29,9 +29,7 @@ end
 
 local channel_id = extract_first_channel_id(payload.seller and payload.seller.operatingChannels)
 if not channel_id then
-    ngx.status = ngx.HTTP_UNAUTHORIZED
-    ngx.say(cjson.encode({ error = "Missing channel_id in JWT" }))
-    return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+    return response.unauthorized("Missing channel_id in JWT")
 end
 
 ngx.ctx.channel_id = channel_id
