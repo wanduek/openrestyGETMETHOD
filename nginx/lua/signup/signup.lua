@@ -1,12 +1,11 @@
 local postgre = require "db.postgre"
 local cjson = require "cjson.safe"
 local jwt = require "middleware.jwt"
+local response = require "response"
 
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
 local data = cjson.decode(body)
-local secret = os.getenv("JWT_SECRET")
-
 if not data or not data.email or not data.password then
     ngx.status = ngx.HTTP_BAD_REQUEST
     ngx.say(cjson.encode({ error = "Email and password required" }))
@@ -16,9 +15,7 @@ end
 -- DB 연결
 local db = postgre.new()
 if not db then
-    ngx.status = 500
-    ngx.say(cjson.encode({ error = "Failed to connect to database" }))
-    return
+    return response.internal_server_error("Failed to connect to database")
 end
 
 -- 예시: 사용자 이메일 중복 체크 & 삽입
