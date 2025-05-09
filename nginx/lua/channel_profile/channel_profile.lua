@@ -3,11 +3,12 @@ local jwt = require "middleware.jwt"
 local cjson = require "cjson.safe"
 local lua_query = require "lua_query"
 local response = require "response"
+local payload_builder = require "middleware.payload_build"
 
 -- profiles 생성
 local function create_channel_user_profile(db, data)
     local function safe_quote(value)
-        if value == nil or value == "null" then
+        if value == nil then
             return response.internal_server_error("NULL")
         else
             return ngx.quote_sql_str(value)
@@ -28,6 +29,10 @@ local function create_channel_user_profile(db, data)
     )
     local res = db:query(sql)
 
+    if not res or not res[1] then
+        return response.internal_server_error('Failed to insert profile')
+    end
+
     return res[1]
 end
 
@@ -43,7 +48,6 @@ for _, field in ipairs(required_profile) do
     end 
 end
 
-
 -- 사용자 정보 추출
 local user_id = ngx.ctx.user_id
 
@@ -57,20 +61,10 @@ local db = postgre.new()
 local user = lua_query.get_user_by_id(db, user_id)
 
 -- seller 메인 프로필 조회
-local main_profile, err = lua_query.get_main_profile(db, user_id)
-if not main_profile then
-    ngx.status = 404
-    ngx.say(cjson.encode({ error = err }))
-    return
-end
+local main_profile = lua_query.get_main_profile(db, user_id)
 
 -- 채널 조회
-local channel, err = lua_query.get_channel_by_id(db, channel_id)
-if not channel then
-    ngx.status = 404
-    ngx.say(cjson.encode({ error = err }))
-    return
-end
+local channel = lua_query.get_channel_by_id(db, channel_id)
 
 -- profile 생성 후 조회
 local profile = create_channel_user_profile(
@@ -87,65 +81,30 @@ local channel_members = string.format("INSERT INTO channel_memberships (channel_
 channel_id, 
 profile_id
 )
+
 local channel_member_res = db:query(channel_members)
 if not channel_member_res then
     return response.internal_server_error("Fail to create channel membership")
 end
 
--- JWT 생성
-local jti = jwt.custom_random_jti(32) 
+-- 커넥션 풀에 반납
+postgre.keepalive(db)
 
-local payload = jwt.sign{
-    aud = "publ",
-    exp = ngx.time() + 3600,
-    iat = ngx.time(),
-    iss = "publ",
-    jti = jti,
-    nbf = ngx.time() - 1,
-    seller = {
-        distinctId = user.distinct_id,
-        email = user.email,  -- 사용자가 제공한 이메일 정보
-        id = user.id,
-        identity = "IDENTITY:" .. user.type .. ":" .. user.id,
-        isGlobalSeller = user.is_global_seller,
-        mainProfile = {
-            id = main_profile.id,
-            nickname = main_profile.nickname
-        },
-        operatingChannels = {
-            [tostring(channel_id)] = {
-                baseCurrency = channel.base_currency,
-                profile = {
-                    id =profile.id,
-                    nickname =  data.nickname,
-                    age = data.age,
-                    birthYear = data.birth_year,
-                    certifiedAge = data.certified_age,
-                    gender = data.gender,
-                    imageSrc = profile.image_src,
-                    isFeatured = profile.is_featured,
-                    distinctId = profile.distinct_id
-                },
-                status = channel.status
-            }
-        },
-        pAppAdditionalPermissions = { ["*"] = true },
-        pAppPermission = { "*" },
-        permissions = { "*" },
-        role = user.role,
-        status = user.status,
-        type = user.type
+local payload = payload_builder.build({
+    user = user,
+    main_profile = main_profile,
+    channel = channel,
+    channel_id = channel_id,
+    profile = profile
+})
 
-    },
-    sub = user.type .. ":" .. user_id,
-    typ = "access",
-}
+local token = jwt.sign(payload)
 
 local success_data = {
     message = "profile created successfully",
     channel_id = channel_id,
     profile_id = profile.id,
-    token = payload
+    token = token
 }
 
 -- 성공 응답

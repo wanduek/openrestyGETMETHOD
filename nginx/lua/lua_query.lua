@@ -75,11 +75,11 @@ end
 function _M.get_profile_by_id(db, profile_id)
     local sql = string.format("SELECT * FROM profiles WHERE id = %s", profile_id)
     local res = db:query(sql)
-    if not res or not res[1] then
+    if not res then
         return response.not_found("Not found profile_id") 
     end
 
-    local profile = res[1]
+    local profile = res
     return {
         id = profile.id,
         nickname = profile.nickname,

@@ -3,6 +3,7 @@ local cjson = require "cjson.safe"
 local jwt = require "middleware.jwt"
 local lua_query = require "lua_query"
 local response = require "response"
+local payload_builder = require "middleware.payload_build"
 
 -- 요청 메서드 확인
 if ngx.req.get_method() ~= "POST" then
@@ -42,47 +43,17 @@ local main_profile = lua_query.get_main_profile(db, user.id)
 -- 커넥션 풀에 반납
 postgre.keepalive(db)
 
--- jti 생성
-local jti = jwt.custom_random_jti(32)
-
 -- JWT 생성
-local payload = jwt.sign({
-    aud = "publ",
-    exp = ngx.time() + 3600,
-    iat = ngx.time(),
-    iss = "publ",
-    jti = jti,
-    nbf = ngx.time() - 1,
-    seller = {
-        distinctId = user.distinct_id ,
-        email = data.email,
-        id = user.id,
-        identity = "IDENTITY:" .. user.type .. ":" .. user.id,
-        isGlobalSeller = user.is_global_seller,
-        mainProfile = {
-            id = main_profile.id,
-            nickname = main_profile.nickname
-        },
-        pAppAdditionalPermissions = {
-            ["*"] = true
-        },
-        pAppPermission = {
-            "*"
-        },
-        permissions = {
-            "*"
-        },
-        role = user.role,
-        status = user.status,
-        type = user.type
-    },
-    sub = user.type .. ":" .. tostring(user.id),
-    typ = "access"
+local payload = payload_builder.build({
+    user = user, 
+    main_profile = main_profile
 })
+
+local token = jwt.sign(payload)
 
 local success_data = {
     message = "Signin successful",
-    token = payload
+    token = token
 }
 
 response.success(success_data)

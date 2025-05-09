@@ -3,6 +3,7 @@ local jwt = require "middleware.jwt"
 local cjson = require "cjson.safe"
 local lua_query = require "lua_query"
 local response = require "response"
+local payload_builder = require "middleware.payload_build"
 
 -- p_app 생성
 local function create_p_app(db, p_app_code, granted_abilities, channel_id)
@@ -36,28 +37,13 @@ local channel_id = ngx.ctx.channel_id
 local db = postgre.new()
 
 -- 사용자, 프로필, 채널 정보 조회
-local user, err = lua_query.get_user_by_id(db, user_id)
-if not user then 
-    ngx.status = 404
-    ngx.say(cjson.encode({ error = err }))
-    return
-end
+local user = lua_query.get_user_by_id(db, user_id)
 
 -- seller의 main_profile 조회
 local main_profile = lua_query.get_main_profile(db, user_id)
-if not main_profile then
-    ngx.status = 404
-    ngx.say(cjson.encode({ error = err }))
-    return
-end
 
 -- channel 조회
 local channel = lua_query.get_channel_by_id(db, channel_id)
--- if not channel then
---     ngx.status = 404
---     ngx.say(cjson.encode({ error = err }))
---     return
--- end
 
 -- p_app 생성
 local p_app_res = create_p_app(db, data.p_app_code, data.granted_abilities, channel_id)
@@ -76,53 +62,25 @@ for _, app in ipairs(p_app_res) do
     }
 end
 
-local jti = jwt.custom_random_jti(32) 
+-- 커넥션 풀에 반납
+postgre.keepalive(db)
 
-local payload = jwt.sign{
-    aud = "publ",
-    exp = ngx.time() + 3600,
-    iat = ngx.time(),
-    iss = "publ",
-    jti = jti,
-    nbf = ngx.time() - 1,
-    sub = user.type .. ":" .. user.id,
-    typ = "access",
-    seller = {
-        distinctId = user.distinct_id,
-        email = data.email,  -- 사용자가 제공한 이메일 정보
-        id = user.id,
-        identity = "IDENTITY:" .. user.type .. ":" .. user.id,
-        isGlobalSeller = user.is_global_seller,
-        mainProfile = {
-            id = main_profile.id,
-            nickname = main_profile.nickname
-        },
-        operatingChannels = {
-            [tostring(channel.id)] = {
-                baseCurrency = channel.base_currency,
-                installedPApps = installedPApps,
-                profile = profile,
-                status = channel.status
-            }
-        },
-        pAppAdditionalPermissions = { ["*"] = true },
-        pAppPermission = { "*" },
-        permissions = { "*" },
-        role = user.role,
-        status = user.status,
-        type = user.type
-    }
-}
-if not payload then
-    return response.internal_server_error("Failed to create JWT: " .. (err or "unknown error"))
-end
+local payload = payload_builder.build({
+    user = user, 
+    main_profile = main_profile, 
+    channel = channel, 
+    installedPApps = installedPApps,
+    channel_id = channel_id
+})
 
-local data = {
+local token = jwt.sign(payload)
+
+local success_data = {
     message = "Channel created successfully",
     channel_id = channel_id,
     pAppCode = data.p_app_code,
     grantedAbilities = data.granted_abilities,
-    token = payload
+    token = token
 }
 -- 성공 응답
-response.success(data)
+response.success(success_data)

@@ -1,4 +1,3 @@
-local cjson = require "cjson"
 local jwt = require "middleware.jwt"
 local response = require "response"
 
@@ -59,7 +58,5 @@ end
 
 -- 레이트 리미트 초과 시 처리
 if req > 100 then
-    ngx.status = ngx.HTTP_TOO_MANY_REQUESTS
-    ngx.say(cjson.encode({ error = "Rate limit exceeded" }))
-    return ngx.exit(ngx.HTTP_TOO_MANY_REQUESTS)
+    return response.too_many_requests("Rate limit exceeded")
 end

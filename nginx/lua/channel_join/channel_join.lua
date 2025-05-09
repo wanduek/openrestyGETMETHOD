@@ -3,6 +3,7 @@ local postgre  = require "db.postgre"
 local jwt = require "middleware.jwt"
 local lua_query = require "lua_query"
 local response = require "response"
+local payload_builder = require "middleware.payload_build"
 
 
 
@@ -43,50 +44,24 @@ local profile = lua_query.get_profile_by_id(db, profile_id)
 -- installedPApps 조회
 local installedPApps = lua_query.get_installed_papps(db, channel_id)
 
--- jti 생성
-local jti = jwt.custom_random_jti(32) 
+-- 커넥션 풀에 반납
+postgre.keepalive(db)
 
-local payload = jwt.sign{
-    aud = "publ",
-    exp = ngx.time() + 3600,
-    iat = ngx.time(),
-    iss = "publ",
-    jti = jti,
-    nbf = ngx.time() - 1,
-    seller = {
-        distinctId = user.distinct_id,
-        email = user.email, 
-        id = user.id,
-        identity = "IDENTITY:" .. user.type .. ":" .. user.id,
-        isGlobalSeller = user.is_global_seller,
-        mainProfile = {
-            id = main_profile.id,
-            nickname = main_profile.nickname
-        },
-        operatingChannels = {
-            [channel_id] = {
-                baseCurrency = channel.base_currency,
-                installedPApps = installedPApps,
-                profile = profile,
-                status = channel.status
-            }
-        },
-        pAppAdditionalPermissions = { ["*"] = true },
-        pAppPermission = { "*" },
-        permissions = { "*" },
-        role = user.role,
-        status = user.status,
-        type = user.type
 
-    },
-    sub = user.type .. ":" .. user.id,
-    typ = "access",
-}
+local payload = payload_builder.build({
+    channel_id = channel_id,
+    user = user,
+    main_profile = main_profiled,
+    profile = profile,
+    installedPApps = installedPApps
+})
 
-local data = {
+local token = jwt.sign(payload)
+
+local success_data = {
     message = "Successfully joined channel",
     channelId = channel_id,
-    token = payload
+    token = token
 }
 
-response.success(data)
+response.success(success_data)
