@@ -5,8 +5,6 @@ local lua_query = require "lua_query"
 local response = require "response"
 local payload_builder = require "middleware.payload_build"
 
-
-
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
 local data = cjson.decode(body)

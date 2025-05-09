@@ -3,6 +3,7 @@ local jwt = require "middleware.jwt"
 local cjson = require "cjson.safe"
 local lua_query = require "lua_query"
 local response = require "response"
+local payload_builder = require "middleware.payload_build"
 
 ngx.req.read_body()
 local body = ngx.req.get_body_data()
@@ -54,53 +55,18 @@ local main_profile = lua_query.get_main_profile(db, user_id)
 -- 커넥션 풀에 반납
 postgre.keepalive(db)
 
-local jti = jwt.custom_random_jti(32)
-
--- JWT 생성
-local payload = jwt.sign({
-    aud = "publ",
-    exp = ngx.time() + 3600,
-    iat = ngx.time(),
-    iss = "publ",
-    jti = jti,
-    nbf = ngx.time() - 1,
-    seller = {
-        distinctId = user.distinct_id ,
-        email = user.email,
-        id = user_id,
-        identity = "IDENTITY:" .. user.type .. ":" .. user_id,
-        isGlobalSeller = user.is_global_seller,
-        mainProfile = {
-            id = main_profile.id,
-            nickname = main_profile.nickname
-        },
-        operatingChannels = {
-            [tostring(channel.id)] = {
-                baseCurrency = channel.base_currency,
-            },
-            status = channel.status,
-        },
-        pAppAdditionalPermissions = {
-            ["*"] = true
-        },
-        pAppPermission = {
-            "*"
-        },
-        permissions = {
-            "*"
-        },
-        role = user.role,
-        status = user.status,
-        type = user.type
-    },
-    sub = user.type .. ":" .. user_id,
-    typ = "access"
+local payload = payload_builder.build({
+    channel_id = channel.id,
+    user = user,
+    main_profile = main_profile
 })
+
+local token = jwt.sign(payload)
 
 local success_data = {
     message = "Channel created successfully",
     channel_id = channel.id,  
-    token = payload
+    token = token
 }
 
 -- 성공 응답

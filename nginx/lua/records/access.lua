@@ -39,10 +39,23 @@ if not channel_id_from_header_num then
     return response.bad_request("X-Channel-Id must be a valid number")
 end
 
--- payload에 channel_id 값 유무 체크
-if not payload.seller or not payload.seller.operatingChannels then
-    return response.forbidden("Unauthorized channel access")
+-- operatingChannels에서 channel_id 추출
+local function extract_first_channel_id(operatingChannels)
+    if type(operatingChannels) ~= "table" then return nil end
+    for channel_id_str, _ in pairs(operatingChannels) do
+        return tonumber(channel_id_str)
+    end
+    return nil
 end
+
+local channel_id = extract_first_channel_id(payload.seller and payload.seller.operatingChannels)
+if not channel_id then
+    return response.unauthorized("Missing channel_id in JWT")
+end
+
+ngx.ctx.channel_id = channel_id
+
+
 
 -- 레이트 리미트 로직
 local limit = ngx.shared.rate_limit

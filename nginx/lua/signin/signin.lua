@@ -45,7 +45,7 @@ postgre.keepalive(db)
 
 -- JWT 생성
 local payload = payload_builder.build({
-    user = user, 
+    user = user,
     main_profile = main_profile
 })
 

@@ -76,7 +76,7 @@ local payload = payload_builder.build({
 local token = jwt.sign(payload)
 
 local success_data = {
-    message = "Channel created successfully",
+    message = "pApps created successfully",
     channel_id = channel_id,
     pAppCode = data.p_app_code,
     grantedAbilities = data.granted_abilities,

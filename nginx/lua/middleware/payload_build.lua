@@ -8,7 +8,7 @@ function _M.build(args)
     local user = args.user
     local channel_id = args.channel_id or 0
     local main_profile = args.main_profile or {}
-    local channel = arg.channel or {}
+    local channel = args.channel or {}
     local profile = args.profile or {}
     local installedPApps = args.installedPApps or {}
 
